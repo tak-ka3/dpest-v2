@@ -46,6 +46,7 @@ class Argmax:
     def _compute_argmax_prob(distributions: List[Dist], target_idx: int) -> float:
         """
         P(argmax=target_idx) = ∫ f_target(x) ∏_{j≠target} F_j(x) dx を計算
+        つまり、target_idxにおける値が最大になり、他の確率変数の値はそれ以下になる確率を考える
         """
         target_dist = distributions[target_idx]
         other_dists = [distributions[j] for j in range(len(distributions)) if j != target_idx]
@@ -62,9 +63,10 @@ class Argmax:
         # 各点での累積分布関数の積を計算
         integrand = f_target.copy()
         
+        # ∏_{j≠target} F_j(x) を計算
         for other_dist in other_dists:
             if other_dist.density and 'x' in other_dist.density:
-                # CDFを数値的に計算
+                # CDFを数値的に計算（つまりこの時、比較する二つの確率変数がどちらも確率密度を持つことになる）
                 cdf_values = Argmax._compute_cdf_on_grid(other_dist, x_grid)
                 integrand *= cdf_values
             else:
@@ -72,7 +74,7 @@ class Argmax:
                 cdf_values = Argmax._compute_discrete_cdf_on_grid(other_dist, x_grid)
                 integrand *= cdf_values
         
-        # 数値積分
+        # integrand (=f_target(x) ∏_{j≠target} F_j(x))をx_gridで数値積分
         return np.trapz(integrand, x_grid)
     
     @staticmethod
@@ -117,7 +119,7 @@ class Argmax:
         cdf_values = np.zeros_like(x_grid)
         
         for i, x in enumerate(x_grid):
-            # x以下の確率質量を計算
+            # 台形近似（trapz）により、x以下の確率質量を計算
             mask = dist_x <= x
             if np.any(mask):
                 cdf_values[i] = np.trapz(dist_f[mask], dist_x[mask])
@@ -128,6 +130,7 @@ class Argmax:
                 mask = x_grid >= atom_value
                 cdf_values[mask] += atom_weight
         
+        # cdf_valuesはx_gridに対応する確率質量を表す
         return np.clip(cdf_values, 0, 1)
     
     @staticmethod
