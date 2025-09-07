@@ -38,11 +38,12 @@ class Add:
                 all_shifted_f = []
                 
                 for x_val, x_weight in x_dist.atoms:
-                    shifted_x = y_x + x_val
-                    shifted_f = y_f * x_weight
-                    all_shifted_x.extend(shifted_x)
+                    shifted_x = y_x + x_val # [y_x_1 + x_val, y_x_2 + x_val, ...]
+                    shifted_f = y_f * x_weight # [y_f_1 * x_weight, y_f_2 * x_weight, ...] 確率密度に確率という重みをかける
+                    all_shifted_x.extend(shifted_x) # appendではなくextendなので、リストを1次元で拡張
                     all_shifted_f.extend(shifted_f)
                 
+                # 確率変数の値の最小値と最大値を等間隔でn_grid個だけグリッド化
                 if all_shifted_x:
                     # 統一グリッドで補間
                     min_x = min(all_shifted_x)
@@ -53,11 +54,11 @@ class Add:
                     
                     # 各シフト分布を統一グリッドに補間して加算
                     for x_val, x_weight in x_dist.atoms:
-                        shifted_x = y_x + x_val
-                        shifted_f = y_f * x_weight
+                        shifted_x = y_x + x_val # [y_x_1 + x_val, y_x_2 + x_val, ...]
+                        shifted_f = y_f * x_weight # [y_f_1 * x_weight, y_f_2 * x_weight, ...]
                         f_interp = interpolate.interp1d(shifted_x, shifted_f, 
                                                        bounds_error=False, fill_value=0.0)
-                        unified_f += f_interp(unified_x)
+                        unified_f += f_interp(unified_x) # 各点での確率密度を加算
                     
                     result_density = {'x': unified_x, 'f': unified_f, 'dx': dx}
         
@@ -70,10 +71,11 @@ class Add:
             result_density = Add._convolve_continuous(x_dist.density, y_dist.density)
         
         # サポートの計算（Minkowski和）
-        x_support = x_dist.get_support_interval()
-        y_support = y_dist.get_support_interval()
+        # 結果分布 Z = X + Y がゼロでない値を取りうる範囲を事前に計算している
+        x_support = x_dist.get_support_interval() # Interval(low_1, high_1) or None
+        y_support = y_dist.get_support_interval() # Interval(low_2, high_2) or None
         if x_support and y_support:
-            result_support = [x_support + y_support]
+            result_support = [x_support + y_support] # Interval(low_1 + low_2, high_1 + high_2)
         
         # 点質量をマージ
         result_atoms = merge_atoms(result_atoms)
