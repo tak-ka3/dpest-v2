@@ -54,9 +54,9 @@
 
 ## 5. Argmax演算
 
-- **目的**: $Z = \operatorname*{argmax}_i X_i$ の分布（各インデックスが最大となる確率）を計算します。
+- **目的**: $Z = \mathrm{argmax}_i X_i$ の分布（各インデックスが最大となる確率）を計算します。
 - **公式**:
-    - $P(\operatorname*{argmax}=i) = \int f_i(x) \prod_{j\ne i} F_j(x) dx$
+    - $P(\mathrm{argmax}=i) = \int f_i(x) \prod_{j\ne i} F_j(x) dx$
 - **実装**:  
   - 離散分布のみの場合は全組合せを列挙し最大インデックスごとに集計。
   - 連続分布を含む場合は格子上で数値積分します。
