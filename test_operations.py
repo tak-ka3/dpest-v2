@@ -8,7 +8,8 @@ import numpy as np
 from core import Dist
 from operations import (
     max_distribution, min_distribution, argmax_distribution,
-    add_distributions, affine_transform
+    add_distributions, affine_transform,
+    prefix_sum_distributions
 )
 from noise import create_laplace_noise
 
@@ -110,6 +111,29 @@ def test_mixed_operations():
     print()
 
 
+def test_prefix_sum_operation():
+    """PrefixSum演算のテスト"""
+    print("=== PrefixSum演算テスト ===")
+
+    dists = [Dist.deterministic(1.0), Dist.deterministic(2.0), Dist.deterministic(-1.0)]
+    results = prefix_sum_distributions(dists)
+    for idx, dist in enumerate(results):
+        val = dist.atoms[0][0] if dist.atoms else None
+        print(f"  step {idx+1}: 値={val}")
+    print()
+
+
+def test_dependent_add_operation():
+    """依存した確率変数の加法演算テスト"""
+    print("=== 依存加法演算テスト ===")
+    cov = [[1.0, 0.8], [0.8, 1.0]]
+    samples = np.random.multivariate_normal([0.0, 0.0], cov, size=2000)
+    result = add_distributions(Dist.deterministic(0.0), Dist.deterministic(0.0), joint_samples=samples)
+    mean = np.sum(result.density['x'] * result.density['f'] * result.density['dx'])
+    print(f"  サンプルから得た和の平均: {mean:.3f}")
+    print()
+
+
 def test_noisy_argmax_vs_noisy_max():
     """ノイズ付きargmax vs ノイズ付きmaxの比較"""
     print("=== ノイズ付きargmax vs max 比較 ===")
@@ -158,6 +182,8 @@ def main():
         test_max_min_operations()
         test_continuous_operations()
         test_mixed_operations()
+        test_prefix_sum_operation()
+        test_dependent_add_operation()
         test_noisy_argmax_vs_noisy_max()
         
         print("=" * 50)

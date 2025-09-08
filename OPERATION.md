@@ -12,7 +12,9 @@
 4. [最大値演算 (Max)](#最大値演算-max)
 5. [最小値演算 (Min)](#最小値演算-min)
 6. [引数最大値演算 (Argmax)](#引数最大値演算-argmax)
-7. [実装上の注意点](#実装上の注意点)
+7. [累積和演算 (PrefixSum)](#累積和演算-prefixsum)
+8. [依存する確率変数への対応](#依存する確率変数への対応)
+9. [実装上の注意点](#実装上の注意点)
 
 ---
 
@@ -318,6 +320,28 @@ for i, x in enumerate(x_grid):
     mask = dist_x <= x
     if np.any(mask):
         cdf_values[i] = np.trapz(dist_f[mask], dist_x[mask])
+```
+
+---
+
+## 累積和演算 (PrefixSum)
+
+複数の独立な確率変数 $X_1, X_2, \ldots, X_n$ に対し、各ステップの累積和
+$S_k = \sum_{i=1}^k X_i$ の分布を `Add` 演算を用いて逐次計算します。
+結果は各ステップの分布を要素とするリストとして返されます。
+
+---
+
+## 依存する確率変数への対応
+
+本ライブラリの演算は基本的に入力の独立性を仮定しますが、
+`Add` や `Max`、`Min`、`Argmax` では `joint_samples` 引数を受け取り、
+サンプルに基づく近似計算を行うことができます。
+依存関係がある場合は共通の乱数サンプルを提供してください。
+
+```python
+samples = np.random.multivariate_normal(mean, cov, size=1000)
+res = Add.apply(x_dist, y_dist, joint_samples=samples)
 ```
 
 ---

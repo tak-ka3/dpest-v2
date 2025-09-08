@@ -5,7 +5,7 @@ Argmax演算の実装
 """
 
 import numpy as np
-from typing import List
+from typing import List, Optional
 from scipy import integrate
 from core import Dist
 
@@ -14,32 +14,41 @@ class Argmax:
     """Argmax演算: P(argmax=i) = ∫ f_i(x) ∏_{j≠i} F_j(x) dx"""
     
     @staticmethod
-    def apply(distributions: List[Dist]) -> Dist:
+    def apply(distributions: List[Dist], joint_samples: Optional[np.ndarray] = None) -> Dist:
         """
         分布のリストからargmax分布を計算
-        
+
         Args:
             distributions: 各要素の分布のリスト
-            
+            joint_samples: 依存する入力サンプル (n, k)。指定された場合は
+                サンプルからargmax分布を近似する。
+
         Returns:
             argmaxの離散分布（各インデックスの確率）
         """
+        if joint_samples is not None:
+            indices = np.argmax(joint_samples, axis=1)
+            unique, counts = np.unique(indices, return_counts=True)
+            total = len(indices)
+            atoms = [(int(idx), cnt/total) for idx, cnt in zip(unique, counts)]
+            return Dist.from_atoms(atoms)
+
         n = len(distributions)
         if n == 0:
             raise ValueError("Empty distribution list")
-        
+
         argmax_probs = []
-        
+
         for i in range(n):
             # P(argmax=i) を計算
             prob_i = Argmax._compute_argmax_prob(distributions, i)
             argmax_probs.append((i, prob_i))
-        
+
         # 正規化
         total_prob = sum(prob for _, prob in argmax_probs)
         if total_prob > 0:
             argmax_probs = [(idx, prob/total_prob) for idx, prob in argmax_probs]
-        
+
         return Dist.from_atoms(argmax_probs)
     
     @staticmethod
@@ -146,6 +155,6 @@ class Argmax:
         return np.clip(cdf_values, 0, 1)
 
 
-def argmax_distribution(distributions: List[Dist]) -> Dist:
+def argmax_distribution(distributions: List[Dist], joint_samples: Optional[np.ndarray] = None) -> Dist:
     """便利関数：argmax分布を計算"""
-    return Argmax.apply(distributions)
+    return Argmax.apply(distributions, joint_samples=joint_samples)

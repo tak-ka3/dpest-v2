@@ -5,17 +5,38 @@ AddやAffineなどの基本的な確率分布演算を実装します。
 """
 
 import numpy as np
-from typing import List, Union
+from typing import List, Union, Optional
 from scipy import interpolate
 from core import Dist, Interval, merge_atoms
 
 
 class Add:
     """加法演算: Z = X + Y"""
-    
+
     @staticmethod
-    def apply(x_dist: Dist, y_dist: Dist) -> Dist:
-        """独立な二つの分布の和を計算"""
+    def apply(x_dist: Dist, y_dist: Dist, joint_samples: Optional[np.ndarray] = None) -> Dist:
+        """
+        二つの分布の和を計算する。
+
+        Args:
+            x_dist, y_dist: 足し合わせる分布。通常は独立を仮定する。
+            joint_samples: (n,2) 形状のサンプル行列。入力が独立でない場合に
+                共通サンプルから分布を近似するために使用する。
+
+        Returns:
+            Z = X + Y の分布
+        """
+
+        # 依存する入力への対処（サンプルベースの近似）
+        if joint_samples is not None:
+            sums = joint_samples[:, 0] + joint_samples[:, 1]
+            hist, bin_edges = np.histogram(sums, bins=100, density=True)
+            centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+            dx = bin_edges[1] - bin_edges[0]
+            result = Dist(density={'x': centers, 'f': hist, 'dx': dx})
+            result.normalize()
+            return result
+
         result_atoms = []
         result_density = {}
         result_support = []
@@ -165,12 +186,15 @@ class Affine:
         return Dist(atoms=result_atoms, density=result_density, support=result_support)
 
 
-def add_distributions(x_dist: Dist, y_dist: Union[Dist, List[Dist]]) -> Union[Dist, List[Dist]]:
+def add_distributions(x_dist: Dist, y_dist: Union[Dist, List[Dist]],
+                     joint_samples: Optional[np.ndarray] = None) -> Union[Dist, List[Dist]]:
     """便利関数：分布の加法"""
     if isinstance(y_dist, list):
+        if joint_samples is not None:
+            raise ValueError("joint_samples はリスト入力ではサポートされていません")
         return [Add.apply(x_dist, y) for y in y_dist]
     else:
-        return Add.apply(x_dist, y_dist)
+        return Add.apply(x_dist, y_dist, joint_samples=joint_samples)
 
 
 def affine_transform(x_dist: Dist, a: float, b: float = 0.0) -> Dist:
