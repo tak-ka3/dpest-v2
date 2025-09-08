@@ -7,8 +7,7 @@
 from typing import Callable, Any, List, Union
 from core import Dist
 from noise import Laplace, create_laplace_noise
-from operations import Add, Affine, add_distributions, affine_transform
-from argmax import Argmax, argmax_distribution
+from operations import Add, Affine, add_distributions, affine_transform, Max, Min, max_distribution, min_distribution, Argmax, argmax_distribution
 
 
 class ComputationNode:
@@ -30,6 +29,8 @@ class Engine:
             'add': self._add_op,
             'affine': self._affine_op,
             'argmax': self._argmax_op,
+            'max': self._max_op,
+            'min': self._min_op,
         }
     
     def compile(self, algo_func: Callable) -> Callable:
@@ -123,6 +124,28 @@ class Engine:
             raise ValueError("Argmax requires a list of distributions")
         
         return argmax_distribution(distributions)
+    
+    def _max_op(self, node: ComputationNode) -> Dist:
+        """Max操作"""
+        if len(node.inputs) != 1:
+            raise ValueError("Max operation requires exactly 1 input")
+        
+        distributions = node.inputs[0].output
+        if not isinstance(distributions, list):
+            raise ValueError("Max requires a list of distributions")
+        
+        return max_distribution(distributions)
+    
+    def _min_op(self, node: ComputationNode) -> Dist:
+        """Min操作"""
+        if len(node.inputs) != 1:
+            raise ValueError("Min operation requires exactly 1 input")
+        
+        distributions = node.inputs[0].output
+        if not isinstance(distributions, list):
+            raise ValueError("Min requires a list of distributions")
+        
+        return min_distribution(distributions)
 
 
 # グローバル関数として提供
@@ -165,3 +188,13 @@ def Laplace_dist(b: float, size: int = None) -> Union[Dist, List[Dist]]:
 def vector_argmax(distributions: List[Dist]) -> Dist:
     """ベクトルのargmaxを計算（アルゴリズム記述用）"""
     return argmax_distribution(distributions)
+
+
+def vector_max(distributions: List[Dist]) -> Dist:
+    """ベクトルのmaxを計算（アルゴリズム記述用）"""
+    return max_distribution(distributions)
+
+
+def vector_min(distributions: List[Dist]) -> Dist:
+    """ベクトルのminを計算（アルゴリズム記述用）"""
+    return min_distribution(distributions)

@@ -1,0 +1,173 @@
+"""
+全操作のテストスクリプト
+
+operationsディレクトリに移動した演算のテストを行います。
+"""
+
+import numpy as np
+from core import Dist
+from operations import (
+    max_distribution, min_distribution, argmax_distribution,
+    add_distributions, affine_transform
+)
+from noise import create_laplace_noise
+
+
+def test_argmax_operations():
+    """Argmax演算のテスト"""
+    print("=== Argmax演算テスト ===")
+    
+    # 離散分布のargmaxテスト
+    dist1 = Dist.from_atoms([(1, 0.3), (3, 0.7)])  # X: {1: 0.3, 3: 0.7}
+    dist2 = Dist.from_atoms([(2, 0.4), (4, 0.6)])  # Y: {2: 0.4, 4: 0.6}
+    dist3 = Dist.from_atoms([(0, 0.5), (5, 0.5)])  # Z: {0: 0.5, 5: 0.5}
+    
+    print("入力分布:")
+    print(f"  分布1: {[(v, p) for v, p in dist1.atoms]}")
+    print(f"  分布2: {[(v, p) for v, p in dist2.atoms]}")
+    print(f"  分布3: {[(v, p) for v, p in dist3.atoms]}")
+    
+    # Argmax計算
+    argmax_result = argmax_distribution([dist1, dist2, dist3])
+    print(f"Argmax結果: {[(int(v), p) for v, p in argmax_result.atoms]}")
+    print()
+
+
+def test_max_min_operations():
+    """Max/Min演算のテスト"""
+    print("=== Max/Min演算テスト ===")
+    
+    # 2つの離散分布
+    dist1 = Dist.from_atoms([(1, 0.6), (4, 0.4)])  
+    dist2 = Dist.from_atoms([(2, 0.3), (3, 0.7)])  
+    
+    print("入力分布:")
+    print(f"  分布1: {[(v, p) for v, p in dist1.atoms]}")
+    print(f"  分布2: {[(v, p) for v, p in dist2.atoms]}")
+    
+    # Max計算
+    max_result = max_distribution([dist1, dist2])
+    print(f"Max結果: {[(v, p) for v, p in max_result.atoms]}")
+    
+    # Min計算
+    min_result = min_distribution([dist1, dist2])
+    print(f"Min結果: {[(v, p) for v, p in min_result.atoms]}")
+    print()
+
+
+def test_continuous_operations():
+    """連続分布の演算テスト"""
+    print("=== 連続分布演算テスト ===")
+    
+    # ラプラス分布を作成
+    lap1 = create_laplace_noise(b=1.0)
+    lap2 = create_laplace_noise(b=1.5)
+    
+    print(f"ラプラス分布1: 格子点数={len(lap1.density['x'])}, 総質量={lap1.total_mass():.6f}")
+    print(f"ラプラス分布2: 格子点数={len(lap2.density['x'])}, 総質量={lap2.total_mass():.6f}")
+    
+    # Max計算
+    max_result = max_distribution([lap1, lap2])
+    print(f"Max結果: 格子点数={len(max_result.density['x'])}, 総質量={max_result.total_mass():.6f}")
+    
+    # 平均値の近似計算
+    x_grid = max_result.density['x']
+    f_grid = max_result.density['f']
+    dx = max_result.density['dx']
+    mean_approx = np.sum(x_grid * f_grid * dx)
+    print(f"Max分布の近似平均: {mean_approx:.3f}")
+    print()
+
+
+def test_mixed_operations():
+    """混合演算テスト（加法変換など）"""
+    print("=== 混合演算テスト ===")
+    
+    # 確定値分布
+    det_dist = Dist.deterministic(5.0)
+    
+    # ラプラス分布
+    lap_dist = create_laplace_noise(b=1.0)
+    
+    print("入力:")
+    print(f"  確定値分布: 値=5.0")
+    print(f"  ラプラス分布: b=1.0")
+    
+    # 加法: 5 + Lap(1)
+    add_result = add_distributions(det_dist, lap_dist)
+    print(f"加法結果: 格子点数={len(add_result.density['x'])}, 総質量={add_result.total_mass():.6f}")
+    
+    # アフィン変換: 2*X + 3
+    affine_result = affine_transform(lap_dist, a=2.0, b=3.0)
+    print(f"アフィン変換結果: 格子点数={len(affine_result.density['x'])}, 総質量={affine_result.total_mass():.6f}")
+    
+    # 平均値の変化確認
+    x_grid = affine_result.density['x']
+    f_grid = affine_result.density['f']
+    dx = affine_result.density['dx']
+    mean_approx = np.sum(x_grid * f_grid * dx)
+    print(f"アフィン変換後の近似平均: {mean_approx:.3f} (期待値: 3.0)")
+    print()
+
+
+def test_noisy_argmax_vs_noisy_max():
+    """ノイズ付きargmax vs ノイズ付きmaxの比較"""
+    print("=== ノイズ付きargmax vs max 比較 ===")
+    
+    # 入力データ
+    input_values = [3.0, 1.0, 4.0, 1.0, 5.0]  # max=5, argmax=4
+    b = 1.0
+    
+    print(f"入力データ: {input_values}")
+    print(f"真のmax: {max(input_values)}")
+    print(f"真のargmax: {input_values.index(max(input_values))}")
+    
+    # 確定値分布を作成
+    input_dists = [Dist.deterministic(val) for val in input_values]
+    
+    # ノイズ分布を作成
+    noise_dists = create_laplace_noise(b=b, size=len(input_values))
+    
+    # ノイズ付き分布: x + noise
+    noisy_dists = []
+    for x_dist, noise_dist in zip(input_dists, noise_dists):
+        noisy_dist = add_distributions(x_dist, noise_dist)
+        noisy_dists.append(noisy_dist)
+    
+    # Argmax計算
+    argmax_result = argmax_distribution(noisy_dists)
+    print(f"ノイズ付きargmax分布: {[(int(v), f'{p:.3f}') for v, p in argmax_result.atoms]}")
+    
+    # Max計算
+    max_result = max_distribution(noisy_dists)
+    x_grid = max_result.density['x']
+    f_grid = max_result.density['f']
+    dx = max_result.density['dx']
+    mean_max = np.sum(x_grid * f_grid * dx)
+    print(f"ノイズ付きmax分布: 近似平均={mean_max:.3f}")
+    print()
+
+
+def main():
+    """メイン実行"""
+    print("Operations ディレクトリ演算テスト")
+    print("=" * 50)
+    
+    try:
+        test_argmax_operations()
+        test_max_min_operations()
+        test_continuous_operations()
+        test_mixed_operations()
+        test_noisy_argmax_vs_noisy_max()
+        
+        print("=" * 50)
+        print("✅ 全てのテストが正常に完了しました")
+        
+    except Exception as e:
+        print(f"❌ エラーが発生しました: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+if __name__ == "__main__":
+    main()
