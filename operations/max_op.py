@@ -8,7 +8,7 @@ DESIGN.mdの仕様に従い、以下の公式を実装：
 """
 
 import numpy as np
-from typing import List
+from typing import List, Optional
 from scipy import integrate
 from core import Dist, Interval
 
@@ -17,26 +17,37 @@ class Max:
     """Max演算: Z = max(X1, X2, ..., Xk)"""
     
     @staticmethod
-    def apply(distributions: List[Dist]) -> Dist:
+    def apply(distributions: List[Dist], joint_samples: Optional[np.ndarray] = None) -> Dist:
         """
         分布のリストからmax分布を計算
-        
+
         Args:
             distributions: 各要素の分布のリスト
-            
+            joint_samples: 依存関係のある入力を扱うためのサンプル行列
+                (n, k) 形状。提供された場合はサンプルから分布を近似する。
+
         Returns:
             maxの分布
         """
-        if not distributions:
+        if not distributions and joint_samples is None:
             raise ValueError("Empty distribution list")
-        
+
+        if joint_samples is not None:
+            max_samples = np.max(joint_samples, axis=1)
+            hist, bin_edges = np.histogram(max_samples, bins=100, density=True)
+            centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+            dx = bin_edges[1] - bin_edges[0]
+            result = Dist(density={'x': centers, 'f': hist, 'dx': dx})
+            result.normalize()
+            return result
+
         if len(distributions) == 1:
             return distributions[0]
-        
+
         # 離散分布の場合の簡易処理
         if all(not dist.density for dist in distributions):
             return Max._compute_discrete_max(distributions)
-        
+
         # 連続分布を含む場合
         return Max._compute_continuous_max(distributions)
     
@@ -163,23 +174,37 @@ class Max:
 
 class Min:
     """Min演算: Z = min(X1, X2, ..., Xk)"""
-    
+
     @staticmethod
-    def apply(distributions: List[Dist]) -> Dist:
+    def apply(distributions: List[Dist], joint_samples: Optional[np.ndarray] = None) -> Dist:
         """
         分布のリストからmin分布を計算
         公式: 1 - F_min(z) = ∏_i (1 - F_i(z))
+
+        Args:
+            distributions: 各要素の分布のリスト
+            joint_samples: 依存する入力のサンプル行列 (n, k)
+
         """
-        if not distributions:
+        if not distributions and joint_samples is None:
             raise ValueError("Empty distribution list")
-        
+
+        if joint_samples is not None:
+            min_samples = np.min(joint_samples, axis=1)
+            hist, bin_edges = np.histogram(min_samples, bins=100, density=True)
+            centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+            dx = bin_edges[1] - bin_edges[0]
+            result = Dist(density={'x': centers, 'f': hist, 'dx': dx})
+            result.normalize()
+            return result
+
         if len(distributions) == 1:
             return distributions[0]
-        
+
         # 離散分布の場合の簡易処理
         if all(not dist.density for dist in distributions):
             return Min._compute_discrete_min(distributions)
-        
+
         # 連続分布を含む場合
         return Min._compute_continuous_min(distributions)
     
@@ -256,11 +281,11 @@ class Min:
         return result
 
 
-def max_distribution(distributions: List[Dist]) -> Dist:
+def max_distribution(distributions: List[Dist], joint_samples: Optional[np.ndarray] = None) -> Dist:
     """便利関数：max分布を計算"""
-    return Max.apply(distributions)
+    return Max.apply(distributions, joint_samples=joint_samples)
 
 
-def min_distribution(distributions: List[Dist]) -> Dist:
+def min_distribution(distributions: List[Dist], joint_samples: Optional[np.ndarray] = None) -> Dist:
     """便利関数：min分布を計算"""
-    return Min.apply(distributions)
+    return Min.apply(distributions, joint_samples=joint_samples)
