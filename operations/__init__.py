@@ -9,6 +9,7 @@ from operations.max_op import Max, Min, max_distribution, min_distribution
 from operations.argmax_op import Argmax, argmax_distribution
 from operations.prefix_sum_op import PrefixSum, prefix_sum_distributions
 from operations.sample_op import Sampled, sampled_distribution
+from operations.condition_op import Compare, Condition, compare_geq, condition_mixture
 
 __all__ = [
     'Add', 'Affine', 'add_distributions', 'affine_transform',
@@ -16,4 +17,5 @@ __all__ = [
     'Argmax', 'argmax_distribution',
     'PrefixSum', 'prefix_sum_distributions',
     'Sampled', 'sampled_distribution',
+    'Compare', 'Condition', 'compare_geq', 'condition_mixture',
 ]

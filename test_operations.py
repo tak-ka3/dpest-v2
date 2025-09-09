@@ -212,6 +212,22 @@ def test_sampled_mechanism_operation():
     print()
 
 
+def test_svt_conditional_operation():
+    """条件演算を用いたSparseVectorTechniqueの分布計算テスト"""
+    print("=== SparseVectorTechnique 条件演算テスト ===")
+
+    from dpsniper.mechanisms.sparse_vector_technique import SparseVectorTechnique5
+
+    svt = SparseVectorTechnique5(eps=0.2, t=0.5)
+    a = np.array([0.0, 1.0, 2.0])
+
+    dists = svt.dist(a)
+    for idx, d in enumerate(dists):
+        print(f"  query{idx} atoms: {d.atoms}")
+        print(f"    総質量: {d.total_mass():.3f}")
+    print()
+
+
 def main():
     """メイン実行"""
     print("Operations ディレクトリ演算テスト")
@@ -226,6 +242,7 @@ def main():
         test_dependent_add_operation()
         test_noisy_argmax_vs_noisy_max()
         test_sampled_mechanism_operation()
+        test_svt_conditional_operation()
         
         print("=" * 50)
         print("✅ 全てのテストが正常に完了しました")
