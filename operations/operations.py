@@ -14,7 +14,8 @@ class Add:
     """加法演算: Z = X + Y"""
 
     @staticmethod
-    def apply(x_dist: Dist, y_dist: Dist, joint_samples: Optional[np.ndarray] = None) -> Dist:
+    def apply(x_dist: Dist, y_dist: Dist, joint_samples: Optional[np.ndarray] = None,
+              n_samples: int = 1000) -> Dist:
         """
         二つの分布の和を計算する。
 
@@ -27,6 +28,22 @@ class Add:
             Z = X + Y の分布
         """
 
+        base_sampler = None
+        x_idx = y_idx = None
+
+        # 入力分布が同一のサンプラーを共有している場合、依存とみなす
+        if joint_samples is None and getattr(x_dist, 'sampler', None) is not None \
+           and getattr(y_dist, 'sampler', None) is not None \
+           and x_dist.sampler is y_dist.sampler:
+            base_sampler = x_dist.sampler
+            x_idx = x_dist.sampler_index or 0
+            y_idx = y_dist.sampler_index or 0
+            samples = base_sampler(n_samples)
+            samples = np.asarray(samples)
+            if samples.ndim == 1:
+                samples = samples.reshape(-1, 1)
+            joint_samples = np.column_stack((samples[:, x_idx], samples[:, y_idx]))
+
         # 依存する入力への対処（サンプルベースの近似）
         if joint_samples is not None:
             sums = joint_samples[:, 0] + joint_samples[:, 1]
@@ -35,6 +52,16 @@ class Add:
             dx = bin_edges[1] - bin_edges[0]
             result = Dist(density={'x': centers, 'f': hist, 'dx': dx})
             result.normalize()
+            # サンプラーが存在する場合は結果にも伝播
+            if base_sampler is not None:
+                def sampler(n, bs=base_sampler, xi=x_idx, yi=y_idx):
+                    data = bs(n)
+                    data = np.asarray(data)
+                    if data.ndim == 1:
+                        data = data.reshape(-1, 1)
+                    return data[:, xi] + data[:, yi]
+
+                result.sampler = sampler
             return result
 
         result_atoms = []
@@ -103,6 +130,25 @@ class Add:
         
         result = Dist(atoms=result_atoms, density=result_density, support=result_support)
         result.normalize()
+
+        # サンプリング関数の伝播
+        if getattr(x_dist, 'sampler', None) is not None and getattr(y_dist, 'sampler', None) is not None:
+            if x_dist.sampler is y_dist.sampler:
+                base_sampler = x_dist.sampler
+                x_idx = x_dist.sampler_index or 0
+                y_idx = y_dist.sampler_index or 0
+
+                def sampler(n, bs=base_sampler, xi=x_idx, yi=y_idx):
+                    data = bs(n)
+                    data = np.asarray(data)
+                    if data.ndim == 1:
+                        data = data.reshape(-1, 1)
+                    return data[:, xi] + data[:, yi]
+            else:
+                def sampler(n, xs=x_dist.sample, ys=y_dist.sample):
+                    return xs(n) + ys(n)
+            result.sampler = sampler
+
         return result
     
     @staticmethod
@@ -187,14 +233,15 @@ class Affine:
 
 
 def add_distributions(x_dist: Dist, y_dist: Union[Dist, List[Dist]],
-                     joint_samples: Optional[np.ndarray] = None) -> Union[Dist, List[Dist]]:
+                     joint_samples: Optional[np.ndarray] = None,
+                     n_samples: int = 1000) -> Union[Dist, List[Dist]]:
     """便利関数：分布の加法"""
     if isinstance(y_dist, list):
         if joint_samples is not None:
             raise ValueError("joint_samples はリスト入力ではサポートされていません")
-        return [Add.apply(x_dist, y) for y in y_dist]
+        return [Add.apply(x_dist, y, n_samples=n_samples) for y in y_dist]
     else:
-        return Add.apply(x_dist, y_dist, joint_samples=joint_samples)
+        return Add.apply(x_dist, y_dist, joint_samples=joint_samples, n_samples=n_samples)
 
 
 def affine_transform(x_dist: Dist, a: float, b: float = 0.0) -> Dist:

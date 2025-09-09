@@ -46,15 +46,25 @@ class Laplace:
         
         x = np.linspace(self.mu - support_range, self.mu + support_range, grid_size)
         f = self._pdf(x)
-        
-        dist = Dist.from_density(x, f)
-        dist.support = [Interval(self.mu - support_range, self.mu + support_range)]
-        
+
         if self.size is None:
+            def sampler(n, mu=self.mu, b=self.b):
+                return np.random.laplace(mu, b, (n, 1))
+
+            dist = Dist.from_density(x, f, sampler=sampler, sampler_index=0)
+            dist.support = [Interval(self.mu - support_range, self.mu + support_range)]
             return dist
         else:
+            dists = []
+            for _ in range(self.size):
+                def sampler(n, mu=self.mu, b=self.b):
+                    return np.random.laplace(mu, b, (n, 1))
+
+                dist = Dist.from_density(x, f, sampler=sampler, sampler_index=0)
+                dist.support = [Interval(self.mu - support_range, self.mu + support_range)]
+                dists.append(dist)
             # 独立なラプラス分布のリストを返す
-            return [dist for _ in range(self.size)]
+            return dists
     
     def _pdf(self, x: np.ndarray) -> np.ndarray:
         """確率密度関数"""

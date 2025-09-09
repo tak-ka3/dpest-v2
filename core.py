@@ -46,12 +46,17 @@ class Dist:
                  atoms: Optional[List[Tuple[float, float]]] = None,
                  density: Optional[Dict[str, np.ndarray]] = None,
                  support: Optional[List[Interval]] = None,
-                 error_bounds: Optional[Dict[str, float]] = None):
+                 error_bounds: Optional[Dict[str, float]] = None,
+                 sampler: Optional[Callable[[int], np.ndarray]] = None,
+                 sampler_index: Optional[int] = None):
         self.atoms = atoms or []  # [(value, weight), ...]
         self.density = density or {}  # {'x': grid_x, 'f': grid_f, 'dx': dx}
         self.support = support or []
         self.error_bounds = error_bounds or {}
-        
+        # サンプリング関数（依存関係の判定に利用）
+        self.sampler = sampler
+        self.sampler_index = sampler_index
+
         # 正規化チェック
         self._validate()
     
@@ -86,21 +91,28 @@ class Dist:
             self.density['f'] = self.density['f'] / total
     
     @classmethod
-    def from_atoms(cls, atoms: List[Tuple[float, float]]) -> 'Dist':
+    def from_atoms(cls, atoms: List[Tuple[float, float]],
+                   sampler: Optional[Callable[[int], np.ndarray]] = None,
+                   sampler_index: Optional[int] = None) -> 'Dist':
         """点質量のみから分布を作成"""
-        return cls(atoms=atoms)
-    
+        return cls(atoms=atoms, sampler=sampler, sampler_index=sampler_index)
+
     @classmethod
-    def from_density(cls, x: np.ndarray, f: np.ndarray) -> 'Dist':
+    def from_density(cls, x: np.ndarray, f: np.ndarray,
+                     sampler: Optional[Callable[[int], np.ndarray]] = None,
+                     sampler_index: Optional[int] = None) -> 'Dist':
         """連続密度から分布を作成"""
         dx = x[1] - x[0] if len(x) > 1 else 1.0
         density = {'x': x, 'f': f, 'dx': dx}
-        return cls(density=density)
-    
+        return cls(density=density, sampler=sampler, sampler_index=sampler_index)
+
     @classmethod
     def deterministic(cls, value: float) -> 'Dist':
         """確定値（退化分布）を作成"""
-        return cls.from_atoms([(value, 1.0)])
+        def sampler(n, v=value):
+            return np.full((n, 1), v)
+
+        return cls.from_atoms([(value, 1.0)], sampler=sampler, sampler_index=0)
     
     def get_support_interval(self) -> Optional[Interval]:
         """全体のサポート区間を取得"""
@@ -115,6 +127,18 @@ class Dist:
         atom_str = f"atoms={len(self.atoms)}" if self.atoms else "no atoms"
         density_str = f"density={len(self.density.get('x', []))}" if self.density else "no density"
         return f"Dist({atom_str}, {density_str})"
+
+    def sample(self, n: int) -> np.ndarray:
+        """サンプリング関数があればそれを用いてサンプルを生成"""
+        if self.sampler is None:
+            raise ValueError("No sampler associated with this distribution")
+
+        samples = self.sampler(n)
+        samples = np.asarray(samples)
+        if samples.ndim == 1:
+            return samples
+        idx = self.sampler_index or 0
+        return samples[:, idx]
 
 
 def merge_atoms(atoms: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
