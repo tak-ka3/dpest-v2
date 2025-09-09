@@ -1,5 +1,8 @@
 import numpy as np
 from dpsniper.mechanisms.abstract import Mechanism
+from core import Dist
+from noise import create_laplace_noise
+from operations import add_distributions, compare_geq
 
 
 class SparseVectorTechnique1(Mechanism):
@@ -233,6 +236,26 @@ class SparseVectorTechnique5(Mechanism):
 
         cmp = x >= (rho + self.t)   # broadcasts rho horizontally, x vertically
         return cmp.astype(int)
+
+    def dist(self, a):
+        """Analytically compute marginal output distributions for each query.
+
+        Args:
+            a: 1d array of query results (sensitivity 1)
+
+        Returns:
+            List[Dist]: distribution of TRUE(1) or FALSE(0) for each query.
+        """
+
+        x = np.atleast_1d(a)
+        rho_dist = create_laplace_noise(b=1 / self.eps1)
+        thresh_dist = add_distributions(rho_dist, Dist.deterministic(self.t))
+        results = []
+        for val in x:
+            val_dist = Dist.deterministic(float(val))
+            res_dist = compare_geq(val_dist, thresh_dist)
+            results.append(res_dist)
+        return results
 
 
 class SparseVectorTechnique6(Mechanism):
