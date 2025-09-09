@@ -4,6 +4,10 @@
 operationsディレクトリに移動した演算のテストを行います。
 """
 
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
 import numpy as np
 from core import Dist
 from operations import (
@@ -14,7 +18,7 @@ from operations import (
 from noise import create_laplace_noise
 
 # mechanisms モジュールを dpsniper.mechanisms として参照できるように設定
-import types, sys, mechanisms
+import types, mechanisms
 import mechanisms.abstract
 dp_module = types.ModuleType('dpsniper')
 dp_module.mechanisms = mechanisms
