@@ -217,15 +217,27 @@ def test_svt_conditional_operation():
     print("=== SparseVectorTechnique 条件演算テスト ===")
 
     from dpsniper.mechanisms.sparse_vector_technique import SparseVectorTechnique5
+    # 入力パターン（画像1参照）
+    patterns = {
+        "one_above": (np.array([1, 1, 1, 1, 1]), np.array([2, 1, 1, 1, 1])),
+        "one_below": (np.array([1, 1, 1, 1, 1]), np.array([0, 1, 1, 1, 1])),
+        "one_above_rest_below": (np.array([1, 1, 1, 1, 1]), np.array([2, 0, 0, 0, 0])),
+        "one_below_rest_above": (np.array([1, 1, 1, 1, 1]), np.array([0, 2, 2, 2, 2])),
+        "half_half": (np.array([1, 1, 1, 1, 1]), np.array([0, 0, 2, 2, 2])),
+        "all_above_all_below": (np.array([1, 1, 1, 1, 1]), np.array([2, 2, 2, 2, 2])),
+        "x_shape": (np.array([1, 1, 0, 0, 0]), np.array([0, 0, 1, 1, 1])),
+    }
 
-    svt = SparseVectorTechnique5(eps=0.2, t=0.5)
-    a = np.array([0.0, 1.0, 2.0])
+    # 画像2の推奨値に基づき eps=0.1 を使用
+    svt = SparseVectorTechnique5(eps=0.1, t=1.0)
 
-    dists = svt.dist(a)
-    for idx, d in enumerate(dists):
-        print(f"  query{idx} atoms: {d.atoms}")
-        print(f"    総質量: {d.total_mass():.3f}")
-    print()
+    for name, (a, a_prime) in patterns.items():
+        print(f"-- pattern: {name} --")
+        for label, vec in [("a", a), ("a'", a_prime)]:
+            dists = svt.dist(vec)
+            masses = [d.total_mass() for d in dists]
+            print(f"  {label}={list(vec)} masses={[f'{m:.3f}' for m in masses]}")
+        print()
 
 
 def main():
