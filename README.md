@@ -64,3 +64,20 @@
 ---
 
 各Operationの詳細な実装は [operations/max_op.py](operations/max_op.py), [operations/operations.py](operations/operations.py), [operations/argmax_op.py](operations/argmax_op.py) を参照してください。
+
+## テスト
+
+自動テストは `pytest` で実行できます:
+
+```bash
+pip install -r requirements.txt
+pytest
+```
+
+手動で挙動を確認したい場合は、以下を実行してください:
+
+```bash
+python tests/test_operation.py
+```
+
+GitHub Actions でもプッシュやプルリクエスト時に加え、Actionsタブから手動でも同じテストを実行できます。
