@@ -23,46 +23,71 @@ sys.modules['dpsniper.mechanisms'] = mechanisms
 sys.modules['dpsniper.mechanisms.abstract'] = mechanisms.abstract
 
 
+def generate_patterns(n: int):
+    """画像1に基づく入力パターンを長さnで生成"""
+    ones = np.ones(n, dtype=int)
+    patterns = {
+        "one_above": (
+            ones,
+            np.concatenate(([2], np.ones(n - 1, dtype=int)))
+        ),
+        "one_below": (
+            ones,
+            np.concatenate(([0], np.ones(n - 1, dtype=int)))
+        ),
+        "one_above_rest_below": (
+            ones,
+            np.concatenate(([2], np.zeros(n - 1, dtype=int)))
+        ),
+        "one_below_rest_above": (
+            ones,
+            np.concatenate(([0], np.full(n - 1, 2, dtype=int)))
+        ),
+        "half_half": (
+            ones,
+            np.concatenate((np.zeros(n // 2, dtype=int), np.full(n - n // 2, 2, dtype=int)))
+        ),
+        "all_above_all_below": (
+            ones,
+            np.full(n, 2, dtype=int)
+        ),
+        "x_shape": (
+            np.concatenate((np.ones(n // 2, dtype=int), np.zeros(n - n // 2, dtype=int))),
+            np.concatenate((np.zeros(n // 2, dtype=int), np.ones(n - n // 2, dtype=int)))
+        ),
+    }
+    return {k: (np.array(a), np.array(b)) for k, (a, b) in patterns.items()}
+
+
 def test_argmax_operations():
     """Argmax演算のテスト"""
     print("=== Argmax演算テスト ===")
-    
-    # 離散分布のargmaxテスト
-    dist1 = Dist.from_atoms([(1, 0.3), (3, 0.7)])  # X: {1: 0.3, 3: 0.7}
-    dist2 = Dist.from_atoms([(2, 0.4), (4, 0.6)])  # Y: {2: 0.4, 4: 0.6}
-    dist3 = Dist.from_atoms([(0, 0.5), (5, 0.5)])  # Z: {0: 0.5, 5: 0.5}
-    
-    print("入力分布:")
-    print(f"  分布1: {[(v, p) for v, p in dist1.atoms]}")
-    print(f"  分布2: {[(v, p) for v, p in dist2.atoms]}")
-    print(f"  分布3: {[(v, p) for v, p in dist3.atoms]}")
-    
-    # Argmax計算
-    argmax_result = argmax_distribution([dist1, dist2, dist3])
-    print(f"Argmax結果: {[(int(v), p) for v, p in argmax_result.atoms]}")
-    print()
+
+    patterns = generate_patterns(10)
+    for name, (a, a_prime) in patterns.items():
+        print(f"-- pattern: {name} --")
+        for label, vec in [("a", a), ("a'", a_prime)]:
+            dists = [Dist.deterministic(float(v)) for v in vec]
+            res = argmax_distribution(dists)
+            print(f"  {label} argmax: {[(int(v), p) for v, p in res.atoms]}")
+        print()
 
 
 def test_max_min_operations():
     """Max/Min演算のテスト"""
     print("=== Max/Min演算テスト ===")
-    
-    # 2つの離散分布
-    dist1 = Dist.from_atoms([(1, 0.6), (4, 0.4)])  
-    dist2 = Dist.from_atoms([(2, 0.3), (3, 0.7)])  
-    
-    print("入力分布:")
-    print(f"  分布1: {[(v, p) for v, p in dist1.atoms]}")
-    print(f"  分布2: {[(v, p) for v, p in dist2.atoms]}")
-    
-    # Max計算
-    max_result = max_distribution([dist1, dist2])
-    print(f"Max結果: {[(v, p) for v, p in max_result.atoms]}")
-    
-    # Min計算
-    min_result = min_distribution([dist1, dist2])
-    print(f"Min結果: {[(v, p) for v, p in min_result.atoms]}")
-    print()
+
+    patterns = generate_patterns(10)
+    for name, (a, a_prime) in patterns.items():
+        print(f"-- pattern: {name} --")
+        for label, vec in [("a", a), ("a'", a_prime)]:
+            dists = [Dist.deterministic(float(v)) for v in vec]
+            max_res = max_distribution(dists)
+            min_res = min_distribution(dists)
+            max_val = max_res.atoms[0][0] if max_res.atoms else None
+            min_val = min_res.atoms[0][0] if min_res.atoms else None
+            print(f"  {label} max={max_val} min={min_val}")
+        print()
 
 
 def test_continuous_operations():
@@ -124,12 +149,15 @@ def test_prefix_sum_operation():
     """PrefixSum演算のテスト"""
     print("=== PrefixSum演算テスト ===")
 
-    dists = [Dist.deterministic(1.0), Dist.deterministic(2.0), Dist.deterministic(-1.0)]
-    results = prefix_sum_distributions(dists)
-    for idx, dist in enumerate(results):
-        val = dist.atoms[0][0] if dist.atoms else None
-        print(f"  step {idx+1}: 値={val}")
-    print()
+    patterns = generate_patterns(10)
+    for name, (a, a_prime) in patterns.items():
+        print(f"-- pattern: {name} --")
+        for label, vec in [("a", a), ("a'", a_prime)]:
+            dists = [Dist.deterministic(float(v)) for v in vec]
+            results = prefix_sum_distributions(dists)
+            vals = [d.atoms[0][0] if d.atoms else None for d in results]
+            print(f"  {label} prefix_sum={vals}")
+        print()
 
 
 def test_dependent_add_operation():
@@ -217,16 +245,8 @@ def test_svt_conditional_operation():
     print("=== SparseVectorTechnique 条件演算テスト ===")
 
     from dpsniper.mechanisms.sparse_vector_technique import SparseVectorTechnique5
-    # 入力パターン（画像1参照）
-    patterns = {
-        "one_above": (np.array([1, 1, 1, 1, 1]), np.array([2, 1, 1, 1, 1])),
-        "one_below": (np.array([1, 1, 1, 1, 1]), np.array([0, 1, 1, 1, 1])),
-        "one_above_rest_below": (np.array([1, 1, 1, 1, 1]), np.array([2, 0, 0, 0, 0])),
-        "one_below_rest_above": (np.array([1, 1, 1, 1, 1]), np.array([0, 2, 2, 2, 2])),
-        "half_half": (np.array([1, 1, 1, 1, 1]), np.array([0, 0, 2, 2, 2])),
-        "all_above_all_below": (np.array([1, 1, 1, 1, 1]), np.array([2, 2, 2, 2, 2])),
-        "x_shape": (np.array([1, 1, 0, 0, 0]), np.array([0, 0, 1, 1, 1])),
-    }
+    # 画像1のパターンを長さ10で生成
+    patterns = generate_patterns(10)
 
     # 画像2の推奨値に基づき eps=0.1 を使用
     svt = SparseVectorTechnique5(eps=0.1, t=1.0)
