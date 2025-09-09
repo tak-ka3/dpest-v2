@@ -15,6 +15,7 @@
 7. [累積和演算 (PrefixSum)](#累積和演算-prefixsum)
 8. [依存する確率変数への対応](#依存する確率変数への対応)
 9. [実装上の注意点](#実装上の注意点)
+10. [サンプルベース機構 (Sampled)](#サンプルベース機構-sampled)
 
 ---
 
@@ -385,6 +386,32 @@ f_interp = interpolate.interp1d(dist_x, dist_f,
 - **サポート外**: 確率密度は0
 - **無限大**: 適切な範囲で切り捨て
 - **特異点**: 適切な数値的処理
+
+---
+
+## サンプルベース機構 (Sampled)
+
+複雑なアルゴリズムに対しては、閉形式の分布を導出することが困難な場合があります。
+`Sampled` 演算は機構から得られたサンプルをヒストグラム化し、経験的な分布として
+表現します。これにより `mechanisms` ディレクトリに含まれる
+SparseVectorTechnique や RAPPOR などのアルゴリズムにも同じ演算
+フレームワークを適用できます。
+
+### 使用例
+
+```python
+from operations import sampled_distribution
+from dpsniper.mechanisms.sparse_vector_technique import SparseVectorTechnique1
+import numpy as np
+
+mech = SparseVectorTechnique1()
+a = np.array([0.0, 1.0, 2.0])
+
+def sample_fn(n):
+    return mech.m(a, n_samples=n)
+
+dists = sampled_distribution(sample_fn, n_samples=10000)
+```
 
 ---
 

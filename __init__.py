@@ -6,7 +6,12 @@
 
 from .core import Dist, Interval
 from .noise import Laplace, create_laplace_noise
-from .operations import Add, Affine, add_distributions, affine_transform, Max, Min, max_distribution, min_distribution, Argmax, argmax_distribution
+from .operations import (
+    Add, Affine, add_distributions, affine_transform,
+    Max, Min, max_distribution, min_distribution,
+    Argmax, argmax_distribution,
+    Sampled, sampled_distribution,
+)
 from .engine import Engine, compile, AlgorithmBuilder, Laplace_dist, vector_argmax, vector_max, vector_min
 
 __version__ = "0.1.0"
@@ -20,6 +25,7 @@ __all__ = [
     'Add', 'Affine', 'add_distributions', 'affine_transform',
     'Argmax', 'argmax_distribution', 'vector_argmax',
     'Max', 'Min', 'max_distribution', 'min_distribution', 'vector_max', 'vector_min',
+    'Sampled', 'sampled_distribution',
     # エンジン
     'Engine', 'compile', 'AlgorithmBuilder',
 ]
