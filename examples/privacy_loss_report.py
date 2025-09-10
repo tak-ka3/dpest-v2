@@ -1,0 +1,318 @@
+import numpy as np
+from typing import List, Tuple
+
+from dpest.core import Dist
+from dpest.engine import AlgorithmBuilder, vector_argmax, vector_max
+from dpest.operations import add_distributions
+from dpest.noise import create_laplace_noise
+
+from dpest.mechanisms.noisy_hist import NoisyHist1, NoisyHist2
+from dpest.mechanisms.report_noisy_max import (
+    ReportNoisyMax1, ReportNoisyMax2, ReportNoisyMax3, ReportNoisyMax4,
+)
+from dpest.mechanisms.sparse_vector_technique import (
+    SparseVectorTechnique1, SparseVectorTechnique2, SparseVectorTechnique3,
+    SparseVectorTechnique4, SparseVectorTechnique5, SparseVectorTechnique6,
+    NumericalSVT,
+)
+from dpest.mechanisms.laplace import LaplaceMechanism
+from dpest.mechanisms.parallel import LaplaceParallel, SVT34Parallel
+from dpest.mechanisms.prefix_sum import PrefixSum
+from dpest.mechanisms.rappor import Rappor
+from dpest.mechanisms.geometric import TruncatedGeometricMechanism
+
+
+# ---------------------------------------------------------------------------
+# Utility functions for epsilon estimation
+# ---------------------------------------------------------------------------
+
+def epsilon_from_dist(P: Dist, Q: Dist) -> float:
+    """Compute privacy loss ε between two distributions."""
+    if P.atoms and Q.atoms:
+        max_ratio = 0.0
+        for p_val, p_prob in P.atoms:
+            if p_prob <= 0:
+                continue
+            q_prob = 0.0
+            for q_val, q_p in Q.atoms:
+                if abs(p_val - q_val) < 1e-10:
+                    q_prob = q_p
+                    break
+            if q_prob > 0:
+                ratio = max(p_prob / q_prob, q_prob / p_prob)
+                if ratio > max_ratio:
+                    max_ratio = ratio
+        return np.log(max_ratio) if max_ratio > 0 else float('inf')
+    elif P.density and Q.density:
+        # unify grid and compare densities
+        p_x = P.density['x']
+        p_f = P.density['f']
+        q_x = Q.density['x']
+        q_f = Q.density['f']
+        min_x = min(p_x[0], q_x[0])
+        max_x = max(p_x[-1], q_x[-1])
+        unified_x = np.linspace(min_x, max_x, 2000)
+        from scipy import interpolate
+        p_interp = interpolate.interp1d(p_x, p_f, bounds_error=False, fill_value=1e-10)
+        q_interp = interpolate.interp1d(q_x, q_f, bounds_error=False, fill_value=1e-10)
+        p_unified = p_interp(unified_x)
+        q_unified = q_interp(unified_x)
+        ratios = []
+        for i in range(len(unified_x)):
+            if p_unified[i] > 1e-10 and q_unified[i] > 1e-10:
+                ratios.append(p_unified[i] / q_unified[i])
+                ratios.append(q_unified[i] / p_unified[i])
+        if ratios:
+            return np.log(max(ratios))
+        return float('inf')
+    else:
+        return float('inf')
+
+def epsilon_from_list(P_list: List[Dist], Q_list: List[Dist]) -> float:
+    return sum(epsilon_from_dist(P, Q) for P, Q in zip(P_list, Q_list))
+
+def epsilon_from_samples(P: np.ndarray, Q: np.ndarray, bins: int = 50) -> float:
+    """Estimate ε from samples of two distributions."""
+    unique = np.union1d(np.unique(P), np.unique(Q))
+    if len(unique) <= bins:
+        p_counts = np.array([np.mean(P == v) for v in unique])
+        q_counts = np.array([np.mean(Q == v) for v in unique])
+        ratios = []
+        for p, q in zip(p_counts, q_counts):
+            if p > 0 and q > 0:
+                ratios.append(p / q)
+                ratios.append(q / p)
+        if ratios:
+            return np.log(max(ratios))
+        return float('inf')
+    else:
+        hist_range = (min(P.min(), Q.min()), max(P.max(), Q.max()))
+        p_hist, _ = np.histogram(P, bins=bins, range=hist_range, density=True)
+        q_hist, _ = np.histogram(Q, bins=bins, range=hist_range, density=True)
+        ratios = []
+        for p, q in zip(p_hist, q_hist):
+            if p > 1e-12 and q > 1e-12:
+                ratios.append(p / q)
+                ratios.append(q / p)
+        if ratios:
+            return np.log(max(ratios))
+        return float('inf')
+
+def epsilon_from_samples_matrix(P: np.ndarray, Q: np.ndarray) -> float:
+    if P.ndim == 1:
+        P = P.reshape(-1, 1)
+        Q = Q.reshape(-1, 1)
+    eps_total = 0.0
+    for i in range(P.shape[1]):
+        eps_total += epsilon_from_samples(P[:, i], Q[:, i])
+    return eps_total
+
+# ---------------------------------------------------------------------------
+# Analytic implementations using operations
+# ---------------------------------------------------------------------------
+
+def noisy_hist1_dist(a: np.ndarray, eps: float) -> List[Dist]:
+    x_dists = [Dist.deterministic(float(v)) for v in a]
+    noise_dists = create_laplace_noise(b=1/eps, size=len(a))
+    return AlgorithmBuilder.vector_add(x_dists, noise_dists)
+
+def noisy_hist2_dist(a: np.ndarray, eps: float) -> List[Dist]:
+    x_dists = [Dist.deterministic(float(v)) for v in a]
+    noise_dists = create_laplace_noise(b=eps, size=len(a))
+    return AlgorithmBuilder.vector_add(x_dists, noise_dists)
+
+def report_noisy_max1_dist(a: np.ndarray, eps: float) -> Dist:
+    x_dists = [Dist.deterministic(float(v)) for v in a]
+    noise_dists = create_laplace_noise(b=2/eps, size=len(a))
+    z_dists = AlgorithmBuilder.vector_add(x_dists, noise_dists)
+    return vector_argmax(z_dists)
+
+def report_noisy_max3_dist(a: np.ndarray, eps: float) -> Dist:
+    x_dists = [Dist.deterministic(float(v)) for v in a]
+    noise_dists = create_laplace_noise(b=2/eps, size=len(a))
+    z_dists = AlgorithmBuilder.vector_add(x_dists, noise_dists)
+    return vector_max(z_dists)
+
+def laplace_vec_dist(a: np.ndarray, eps: float) -> List[Dist]:
+    x_dists = [Dist.deterministic(float(v)) for v in a]
+    noise_dists = create_laplace_noise(b=1/eps, size=len(a))
+    return AlgorithmBuilder.vector_add(x_dists, noise_dists)
+
+def laplace_parallel_dist(a: np.ndarray, eps_each: float, n_parallel: int) -> List[Dist]:
+    x_dist = Dist.deterministic(float(a.item(0)))
+    noise_list = create_laplace_noise(b=1/eps_each, size=n_parallel)
+    return [add_distributions(x_dist, n) for n in noise_list]
+
+# ---------------------------------------------------------------------------
+# Estimation driver
+# ---------------------------------------------------------------------------
+
+def estimate_algorithm(name: str, pairs: List[Tuple[np.ndarray, np.ndarray]], *,
+                       dist_func=None, mechanism=None, eps: float = 0.1,
+                       n_samples: int = 10000, extra=None) -> float:
+    eps_max = 0.0
+    for D, Dp in pairs:
+        if dist_func is not None:
+            if extra is None:
+                P = dist_func(D, eps)
+                Q = dist_func(Dp, eps)
+            else:
+                P = dist_func(D, eps, *extra)
+                Q = dist_func(Dp, eps, *extra)
+            if isinstance(P, list):
+                eps_val = epsilon_from_list(P, Q)
+            else:
+                eps_val = epsilon_from_dist(P, Q)
+        else:
+            P_samples = mechanism.m(D, n_samples)
+            Q_samples = mechanism.m(Dp, n_samples)
+            eps_val = epsilon_from_samples_matrix(P_samples, Q_samples)
+        if eps_val > eps_max:
+            eps_max = eps_val
+    return eps_max
+
+def generate_hist_pairs(length: int) -> List[Tuple[np.ndarray, np.ndarray]]:
+    base = np.ones(length)
+    pairs = []
+    for i in range(length):
+        for j in range(length):
+            if i == j:
+                continue
+            a = base.copy()
+            b = base.copy()
+            b[i] += 1
+            b[j] -= 1
+            pairs.append((a, b))
+    return pairs
+
+def generate_change_one_pairs(length: int) -> List[Tuple[np.ndarray, np.ndarray]]:
+    base = np.ones(length)
+    pairs = []
+    for i in range(length):
+        a = base.copy()
+        b = base.copy()
+        b[i] += 1
+        pairs.append((a, b))
+    return pairs
+
+
+def main():
+    input_sizes = {
+        "LaplaceMechanism": 3,
+        "LaplaceParallel": 6,
+        "NoisyHist1": 5,
+        "NoisyHist2": 5,
+        "ReportNoisyMax1": 6,
+        "ReportNoisyMax2": 6,
+        "ReportNoisyMax3": 6,
+        "ReportNoisyMax4": 6,
+        "SVT1": 3,
+        "SVT2": 3,
+        "SVT3": 3,
+        "SVT4": 3,
+        "SVT5": 6,
+        "SVT6": 6,
+        "SVT34Parallel": 6,
+        "NumericalSVT": 1,
+        "PrefixSum": 10,
+        "RAPPOR": 1,
+        "TruncatedGeometric": 1,
+    }
+
+    results = []
+    # Analytic algorithms
+    hist_pairs = generate_hist_pairs(input_sizes["NoisyHist1"])
+    results.append(("NoisyHist1", input_sizes["NoisyHist1"],
+                    estimate_algorithm("NoisyHist1", hist_pairs,
+                                        dist_func=noisy_hist1_dist)))
+    results.append(("NoisyHist2", input_sizes["NoisyHist2"],
+                    estimate_algorithm("NoisyHist2", hist_pairs,
+                                        dist_func=noisy_hist2_dist)))
+
+    vec_pairs = generate_change_one_pairs(input_sizes["ReportNoisyMax1"])
+    results.append(("ReportNoisyMax1", input_sizes["ReportNoisyMax1"],
+                    estimate_algorithm("ReportNoisyMax1", vec_pairs,
+                                       dist_func=report_noisy_max1_dist)))
+    results.append(("ReportNoisyMax3", input_sizes["ReportNoisyMax3"],
+                    estimate_algorithm("ReportNoisyMax3", vec_pairs,
+                                       dist_func=report_noisy_max3_dist)))
+
+    laplace_pairs = generate_change_one_pairs(input_sizes["LaplaceMechanism"])
+    results.append(("LaplaceMechanism", input_sizes["LaplaceMechanism"],
+                    estimate_algorithm("LaplaceMechanism", laplace_pairs,
+                                       dist_func=laplace_vec_dist)))
+    results.append(("LaplaceParallel", input_sizes["LaplaceParallel"],
+                    estimate_algorithm(
+                        "LaplaceParallel", [laplace_pairs[0]],
+                        dist_func=lambda data, eps: laplace_parallel_dist(data, 0.005,
+                                                                          input_sizes["LaplaceParallel"]))))
+
+    # Sampling-based algorithms
+    results.append(("ReportNoisyMax2", input_sizes["ReportNoisyMax2"],
+                    estimate_algorithm(
+                        "ReportNoisyMax2", vec_pairs,
+                        mechanism=ReportNoisyMax2(eps=0.1))))
+    results.append(("ReportNoisyMax4", input_sizes["ReportNoisyMax4"],
+                    estimate_algorithm(
+                        "ReportNoisyMax4", vec_pairs,
+                        mechanism=ReportNoisyMax4(eps=0.1))))
+
+    svt_pairs_short = generate_change_one_pairs(input_sizes["SVT1"])
+    svt_pairs_long = generate_change_one_pairs(input_sizes["SVT5"])
+    results.append(("SVT1", input_sizes["SVT1"],
+                    estimate_algorithm("SVT1", svt_pairs_short,
+                                       mechanism=SparseVectorTechnique1(eps=0.1))))
+    results.append(("SVT2", input_sizes["SVT2"],
+                    estimate_algorithm("SVT2", svt_pairs_short,
+                                       mechanism=SparseVectorTechnique2(eps=0.1))))
+    results.append(("SVT3", input_sizes["SVT3"],
+                    estimate_algorithm("SVT3", svt_pairs_short,
+                                       mechanism=SparseVectorTechnique3(eps=0.1))))
+    results.append(("SVT4", input_sizes["SVT4"],
+                    estimate_algorithm("SVT4", svt_pairs_short,
+                                       mechanism=SparseVectorTechnique4(eps=0.1))))
+    results.append(("SVT5", input_sizes["SVT5"],
+                    estimate_algorithm("SVT5", svt_pairs_long,
+                                       mechanism=SparseVectorTechnique5(eps=0.1))))
+    results.append(("SVT6", input_sizes["SVT6"],
+                    estimate_algorithm("SVT6", svt_pairs_long,
+                                       mechanism=SparseVectorTechnique6(eps=0.1))))
+
+    results.append(("NumericalSVT", input_sizes["NumericalSVT"],
+                    estimate_algorithm("NumericalSVT",
+                                       generate_change_one_pairs(input_sizes["NumericalSVT"]),
+                                       mechanism=NumericalSVT(eps=0.1))))
+
+    prefix_pairs = generate_change_one_pairs(input_sizes["PrefixSum"])
+    results.append(("PrefixSum", input_sizes["PrefixSum"],
+                    estimate_algorithm("PrefixSum", prefix_pairs,
+                                       mechanism=PrefixSum(eps=0.1))))
+
+    rappor_pairs = generate_change_one_pairs(input_sizes["RAPPOR"])
+    results.append(("RAPPOR", input_sizes["RAPPOR"],
+                    estimate_algorithm("RAPPOR", rappor_pairs,
+                                       mechanism=Rappor())))
+
+    results.append(("SVT34Parallel", input_sizes["SVT34Parallel"],
+                    estimate_algorithm("SVT34Parallel", svt_pairs_long,
+                                       mechanism=SVT34Parallel(eps=0.1))))
+
+    tg_pairs = [(np.array([2]), np.array([1])), (np.array([1]), np.array([0]))]
+    results.append(("TruncatedGeometric", input_sizes["TruncatedGeometric"],
+                    estimate_algorithm(
+                        "TruncatedGeometric", tg_pairs,
+                        mechanism=TruncatedGeometricMechanism(eps=0.1, n=5))))
+
+    # Write markdown report
+    with open("docs/privacy_loss_report.md", "w") as f:
+        f.write("# Privacy Loss Report\n\n")
+        f.write("| Algorithm | Input size | Estimated ε |\n")
+        f.write("|-----------|------------|-------------|\n")
+        for name, size, eps in results:
+            f.write(f"| {name} | {size} | {eps:.4f} |\n")
+
+    for name, size, eps in results:
+        print(f"{name} (n={size}): ε ≈ {eps:.4f}")
+
+if __name__ == "__main__":
+    main()
