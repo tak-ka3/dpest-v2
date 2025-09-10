@@ -1,6 +1,11 @@
+import os
+import sys
 import math
 import numpy as np
 from typing import List, Tuple
+
+# Allow importing the dpest package when running this file directly
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from dpest.core import Dist
 from dpest.engine import AlgorithmBuilder, vector_argmax, vector_max
@@ -143,10 +148,22 @@ def epsilon_from_samples_matrix(P: np.ndarray, Q: np.ndarray, bins: int = 50) ->
         return float('inf')
 
     # Otherwise approximate with a multi-dimensional histogram for densities
+    dim = P.shape[1]
+    # Fall back to coordinate-wise estimation if the joint histogram would be
+    # too large (bins^dim bins)
+    if bins ** dim > 1_000_000:
+        return float(
+            sum(epsilon_from_samples(P[:, i], Q[:, i], bins) for i in range(dim))
+        )
+
     ranges = []
-    for d in range(P.shape[1]):
-        ranges.append((min(P[:, d].min(), Q[:, d].min()),
-                       max(P[:, d].max(), Q[:, d].max())))
+    for d in range(dim):
+        ranges.append(
+            (
+                min(P[:, d].min(), Q[:, d].min()),
+                max(P[:, d].max(), Q[:, d].max()),
+            )
+        )
 
     p_hist, _ = np.histogramdd(P, bins=bins, range=ranges, density=True)
     q_hist, _ = np.histogramdd(Q, bins=bins, range=ranges, density=True)
