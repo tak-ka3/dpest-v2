@@ -99,14 +99,66 @@ def epsilon_from_samples(P: np.ndarray, Q: np.ndarray, bins: int = 50) -> float:
             return np.log(max(ratios))
         return float('inf')
 
-def epsilon_from_samples_matrix(P: np.ndarray, Q: np.ndarray) -> float:
+def epsilon_from_samples_matrix(P: np.ndarray, Q: np.ndarray, bins: int = 50) -> float:
+    """Estimate ε from samples of vector-valued distributions.
+
+    Instead of summing privacy losses for each coordinate independently,
+    this function treats each sample as a whole vector and constructs a
+    joint histogram (multi-dimensional) over the vectors. The privacy loss
+    is then evaluated based on the probability (or density) of each bin in
+    this joint histogram.
+
+    Args:
+        P: Samples from the first distribution, shape (n_samples, dim).
+        Q: Samples from the second distribution, same shape as ``P``.
+        bins: Number of bins per dimension for the histogram. If the number
+            of unique vectors is less than or equal to ``bins``, the samples
+            are treated as discrete and exact probabilities are computed.
+
+    Returns:
+        Estimated privacy loss ``ε``.
+    """
+    P = np.asarray(P)
+    Q = np.asarray(Q)
+
+    # Handle 1D case by delegating to scalar implementation
     if P.ndim == 1:
-        P = P.reshape(-1, 1)
-        Q = Q.reshape(-1, 1)
-    eps_total = 0.0
-    for i in range(P.shape[1]):
-        eps_total += epsilon_from_samples(P[:, i], Q[:, i])
-    return eps_total
+        return epsilon_from_samples(P, Q, bins)
+
+    # Combine to inspect uniqueness of vectors
+    combined = np.vstack([P, Q])
+    unique = np.unique(combined, axis=0)
+
+    # If vector outcomes are few, treat as discrete distribution
+    if unique.shape[0] <= bins:
+        p_counts = np.array([np.mean(np.all(P == u, axis=1)) for u in unique])
+        q_counts = np.array([np.mean(np.all(Q == u, axis=1)) for u in unique])
+        ratios = []
+        for p_val, q_val in zip(p_counts, q_counts):
+            if p_val > 0 and q_val > 0:
+                ratios.append(p_val / q_val)
+                ratios.append(q_val / p_val)
+        if ratios:
+            return float(np.log(max(ratios)))
+        return float('inf')
+
+    # Otherwise approximate with a multi-dimensional histogram for densities
+    ranges = []
+    for d in range(P.shape[1]):
+        ranges.append((min(P[:, d].min(), Q[:, d].min()),
+                       max(P[:, d].max(), Q[:, d].max())))
+
+    p_hist, _ = np.histogramdd(P, bins=bins, range=ranges, density=True)
+    q_hist, _ = np.histogramdd(Q, bins=bins, range=ranges, density=True)
+
+    ratios = []
+    for p_val, q_val in zip(p_hist.ravel(), q_hist.ravel()):
+        if p_val > 1e-12 and q_val > 1e-12:
+            ratios.append(p_val / q_val)
+            ratios.append(q_val / p_val)
+    if ratios:
+        return float(np.log(max(ratios)))
+    return float('inf')
 
 # ---------------------------------------------------------------------------
 # Analytic implementations using operations
