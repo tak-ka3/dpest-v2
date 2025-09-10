@@ -6,7 +6,7 @@
 
 import numpy as np
 from typing import Union, List
-from core import Dist, Interval
+from .core import Dist, Interval
 
 
 class Laplace:

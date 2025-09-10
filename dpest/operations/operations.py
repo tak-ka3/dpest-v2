@@ -7,7 +7,7 @@ AddやAffineなどの基本的な確率分布演算を実装します。
 import numpy as np
 from typing import List, Union, Optional
 from scipy import interpolate
-from core import Dist, Interval, merge_atoms
+from ..core import Dist, Interval, merge_atoms
 
 
 class Add:

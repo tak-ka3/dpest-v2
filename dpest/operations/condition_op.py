@@ -9,8 +9,8 @@ from typing import Union
 import numpy as np
 from scipy import interpolate
 
-from core import Dist, merge_atoms
-from operations.operations import Add, Affine
+from ..core import Dist, merge_atoms
+from .operations import Add, Affine
 
 
 class Compare:

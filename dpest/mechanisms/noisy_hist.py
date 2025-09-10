@@ -1,5 +1,5 @@
 import numpy as np
-from dpsniper.mechanisms.abstract import Mechanism
+from .abstract import Mechanism
 
 
 class NoisyHist1(Mechanism):

@@ -1,9 +1,9 @@
 import numpy as np
-from dpsniper.mechanisms.abstract import Mechanism
+from .abstract import Mechanism
 
 import mmh3     # murmur hash 3, used for Bloom filter
 
-from dpsniper.utils.zero import ZeroNoisePrng
+from ..utils.zero import ZeroNoisePrng
 
 
 class Rappor(Mechanism):

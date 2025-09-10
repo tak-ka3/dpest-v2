@@ -1,8 +1,8 @@
 from typing import List
 
-from dpsniper.mechanisms.abstract import Mechanism
-from dpsniper.mechanisms.laplace import LaplaceMechanism
-from dpsniper.mechanisms.sparse_vector_technique import *
+from .abstract import Mechanism
+from .laplace import LaplaceMechanism
+from .sparse_vector_technique import *
 
 import numpy as np
 

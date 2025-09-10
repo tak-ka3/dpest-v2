@@ -7,10 +7,10 @@ Max演算のε消費量分析
 
 import numpy as np
 from typing import List, Tuple
-from core import Dist
-from operations import max_distribution
-from noise import create_laplace_noise
-from engine import AlgorithmBuilder
+from .core import Dist
+from .operations import max_distribution
+from .noise import create_laplace_noise
+from .engine import AlgorithmBuilder
 
 
 def noisy_max_mechanism(x: List[float], b: float = 1.0) -> Dist:

@@ -7,7 +7,7 @@ Argmax演算の実装
 import numpy as np
 from typing import List, Optional
 from scipy import integrate
-from core import Dist
+from ..core import Dist
 
 
 class Argmax:

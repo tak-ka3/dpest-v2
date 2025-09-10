@@ -1,4 +1,4 @@
-from dpsniper.mechanisms.abstract import Mechanism
+from .abstract import Mechanism
 
 import numpy as np
 

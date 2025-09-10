@@ -10,7 +10,7 @@ DESIGN.mdの仕様に従い、以下の公式を実装：
 import numpy as np
 from typing import List, Optional
 from scipy import integrate
-from core import Dist, Interval
+from ..core import Dist, Interval
 
 
 class Max:

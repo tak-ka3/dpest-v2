@@ -9,23 +9,24 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 import numpy as np
-from core import Dist
-from operations import (
+from dpest.core import Dist
+from dpest.operations import (
     max_distribution, min_distribution, argmax_distribution,
     add_distributions, affine_transform,
     prefix_sum_distributions, sampled_distribution
 )
-from noise import create_laplace_noise, Laplace
-from utils.privacy import estimate_privacy_loss
+from dpest.noise import create_laplace_noise, Laplace
+from dpest.utils.privacy import estimate_privacy_loss
 
 # mechanisms モジュールを dpsniper.mechanisms として参照できるように設定
-import types, mechanisms
-import mechanisms.abstract
+import types
+import dpest.mechanisms as mechanisms
+import dpest.mechanisms.abstract
 dp_module = types.ModuleType('dpsniper')
 dp_module.mechanisms = mechanisms
 sys.modules['dpsniper'] = dp_module
 sys.modules['dpsniper.mechanisms'] = mechanisms
-sys.modules['dpsniper.mechanisms.abstract'] = mechanisms.abstract
+sys.modules['dpsniper.mechanisms.abstract'] = dpest.mechanisms.abstract
 
 
 def generate_patterns(n: int):
@@ -263,8 +264,8 @@ def test_sampled_mechanism_operation():
     """Sampled演算を用いた機構の分布近似テスト"""
     print("=== Sampled演算による機構分布近似 ===")
 
-    from dpsniper.mechanisms.report_noisy_max import ReportNoisyMax1
-    from dpsniper.mechanisms.sparse_vector_technique import SparseVectorTechnique1
+    from dpest.mechanisms.report_noisy_max import ReportNoisyMax1
+    from dpest.mechanisms.sparse_vector_technique import SparseVectorTechnique1
 
     # ReportNoisyMax1 の分布近似
     rnm = ReportNoisyMax1(eps=0.5)
@@ -297,7 +298,7 @@ def test_svt_conditional_operation():
     """条件演算を用いたSparseVectorTechniqueの分布計算テスト"""
     print("=== SparseVectorTechnique 条件演算テスト ===")
 
-    from dpsniper.mechanisms.sparse_vector_technique import SparseVectorTechnique5
+    from dpest.mechanisms.sparse_vector_technique import SparseVectorTechnique5
     # 画像1のパターンを長さ10で生成
     patterns = generate_patterns(10)
 
