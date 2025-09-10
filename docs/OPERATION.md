@@ -400,8 +400,8 @@ SparseVectorTechnique や RAPPOR などのアルゴリズムにも同じ演算
 ### 使用例
 
 ```python
-from operations import sampled_distribution
-from dpsniper.mechanisms.sparse_vector_technique import SparseVectorTechnique1
+from dpest.operations import sampled_distribution
+from dpest.mechanisms.sparse_vector_technique import SparseVectorTechnique1
 import numpy as np
 
 mech = SparseVectorTechnique1()

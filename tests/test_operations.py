@@ -3,8 +3,8 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from core import Dist
-from operations import add_distributions, max_distribution, min_distribution, argmax_distribution
+from dpest.core import Dist
+from dpest.operations import add_distributions, max_distribution, min_distribution, argmax_distribution
 
 
 def test_add_distribution():

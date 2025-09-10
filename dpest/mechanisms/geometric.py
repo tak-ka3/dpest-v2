@@ -1,6 +1,6 @@
 import numpy as np
 import math
-from dpsniper.mechanisms.abstract import Mechanism
+from .abstract import Mechanism
 
 
 class TruncatedGeometricMechanism(Mechanism):

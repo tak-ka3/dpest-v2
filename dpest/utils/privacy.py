@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from core import Dist
+from ..core import Dist
 
 
 def estimate_privacy_loss(P: Dist, Q: Dist) -> float:

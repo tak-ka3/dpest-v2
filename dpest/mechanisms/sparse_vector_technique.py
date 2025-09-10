@@ -1,8 +1,8 @@
 import numpy as np
-from dpsniper.mechanisms.abstract import Mechanism
-from core import Dist
-from noise import create_laplace_noise
-from operations import add_distributions, compare_geq
+from .abstract import Mechanism
+from ..core import Dist
+from ..noise import create_laplace_noise
+from ..operations import add_distributions, compare_geq
 
 
 class SparseVectorTechnique1(Mechanism):

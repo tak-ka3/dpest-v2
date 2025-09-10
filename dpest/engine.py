@@ -5,9 +5,20 @@
 """
 
 from typing import Callable, Any, List, Union
-from core import Dist
-from noise import Laplace, create_laplace_noise
-from operations import Add, Affine, add_distributions, affine_transform, Max, Min, max_distribution, min_distribution, Argmax, argmax_distribution
+from .core import Dist
+from .noise import Laplace, create_laplace_noise
+from .operations import (
+    Add,
+    Affine,
+    add_distributions,
+    affine_transform,
+    Max,
+    Min,
+    max_distribution,
+    min_distribution,
+    Argmax,
+    argmax_distribution,
+)
 
 
 class ComputationNode:

@@ -8,7 +8,7 @@
 
 from typing import Callable, Union, List
 import numpy as np
-from core import Dist, Interval
+from ..core import Dist, Interval
 
 
 class Sampled:

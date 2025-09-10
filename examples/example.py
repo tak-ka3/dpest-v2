@@ -8,8 +8,8 @@ import numpy as np
 from typing import List
 
 # 直接インポート
-from core import Dist
-from engine import AlgorithmBuilder, Laplace_dist, vector_argmax
+from dpest.core import Dist
+from dpest.engine import AlgorithmBuilder, Laplace_dist, vector_argmax
 
 
 def noisy_argmax_lap(x: List[float], b: float = 1.0) -> Dist:

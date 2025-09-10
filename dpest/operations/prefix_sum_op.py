@@ -1,8 +1,8 @@
 """Prefix sum operation for distributions."""
 
 from typing import List
-from core import Dist
-from operations.operations import Add
+from ..core import Dist
+from .operations import Add
 
 
 class PrefixSum:
