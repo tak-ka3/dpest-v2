@@ -1,3 +1,4 @@
+import math
 import numpy as np
 from typing import List, Tuple
 
@@ -18,7 +19,7 @@ from dpest.mechanisms.sparse_vector_technique import (
 from dpest.mechanisms.laplace import LaplaceMechanism
 from dpest.mechanisms.parallel import LaplaceParallel, SVT34Parallel
 from dpest.mechanisms.prefix_sum import PrefixSum
-from dpest.mechanisms.rappor import Rappor
+from dpest.mechanisms.rappor import OneTimeRappor, Rappor
 from dpest.mechanisms.geometric import TruncatedGeometricMechanism
 
 
@@ -198,25 +199,49 @@ def generate_change_one_pairs(length: int) -> List[Tuple[np.ndarray, np.ndarray]
 
 def main():
     input_sizes = {
-        "LaplaceMechanism": 3,
-        "LaplaceParallel": 6,
+        "LaplaceMechanism": 1,
+        "LaplaceParallel": 20,
         "NoisyHist1": 5,
         "NoisyHist2": 5,
-        "ReportNoisyMax1": 6,
-        "ReportNoisyMax2": 6,
-        "ReportNoisyMax3": 6,
-        "ReportNoisyMax4": 6,
-        "SVT1": 3,
-        "SVT2": 3,
-        "SVT3": 3,
-        "SVT4": 3,
-        "SVT5": 6,
-        "SVT6": 6,
-        "SVT34Parallel": 6,
-        "NumericalSVT": 1,
+        "ReportNoisyMax1": 5,
+        "ReportNoisyMax2": 5,
+        "ReportNoisyMax3": 5,
+        "ReportNoisyMax4": 5,
+        "SVT1": 10,
+        "SVT2": 10,
+        "SVT3": 10,
+        "SVT4": 10,
+        "SVT5": 10,
+        "SVT6": 10,
+        "SVT34Parallel": 10,
+        "NumericalSVT": 10,
         "PrefixSum": 10,
+        "OneTimeRAPPOR": 1,
         "RAPPOR": 1,
-        "TruncatedGeometric": 1,
+        "TruncatedGeometric": 5,
+    }
+
+    ideal_eps = {
+        "LaplaceMechanism": 0.1,
+        "LaplaceParallel": 0.1,
+        "NoisyHist1": 0.1,
+        "NoisyHist2": 10.0,
+        "ReportNoisyMax1": 0.1,
+        "ReportNoisyMax2": 0.1,
+        "ReportNoisyMax3": float("inf"),
+        "ReportNoisyMax4": float("inf"),
+        "SVT1": 0.1,
+        "SVT2": 0.1,
+        "SVT3": float("inf"),
+        "SVT4": 0.18,
+        "SVT5": float("inf"),
+        "SVT6": float("inf"),
+        "SVT34Parallel": float("inf"),
+        "NumericalSVT": 0.1,
+        "PrefixSum": 0.1,
+        "OneTimeRAPPOR": 0.8,
+        "RAPPOR": 0.4,
+        "TruncatedGeometric": 0.12,
     }
 
     results = []
@@ -288,6 +313,11 @@ def main():
                     estimate_algorithm("PrefixSum", prefix_pairs,
                                        mechanism=PrefixSum(eps=0.1))))
 
+    otr_pairs = generate_change_one_pairs(input_sizes["OneTimeRAPPOR"])
+    results.append(("OneTimeRAPPOR", input_sizes["OneTimeRAPPOR"],
+                    estimate_algorithm("OneTimeRAPPOR", otr_pairs,
+                                       mechanism=OneTimeRappor())))
+
     rappor_pairs = generate_change_one_pairs(input_sizes["RAPPOR"])
     results.append(("RAPPOR", input_sizes["RAPPOR"],
                     estimate_algorithm("RAPPOR", rappor_pairs,
@@ -306,13 +336,25 @@ def main():
     # Write markdown report
     with open("docs/privacy_loss_report.md", "w") as f:
         f.write("# Privacy Loss Report\n\n")
-        f.write("| Algorithm | Input size | Estimated ε |\n")
-        f.write("|-----------|------------|-------------|\n")
+        f.write("| Algorithm | Input size | Estimated ε | Ideal ε |\n")
+        f.write("|-----------|------------|-------------|---------|\n")
         for name, size, eps in results:
-            f.write(f"| {name} | {size} | {eps:.4f} |\n")
+            ideal = ideal_eps.get(name)
+            if ideal is None:
+                ideal_str = "N/A"
+            elif math.isinf(ideal):
+                ideal_str = "∞"
+            else:
+                ideal_str = f"{ideal:.2f}"
+            f.write(f"| {name} | {size} | {eps:.4f} | {ideal_str} |\n")
 
     for name, size, eps in results:
-        print(f"{name} (n={size}): ε ≈ {eps:.4f}")
+        ideal = ideal_eps.get(name)
+        if ideal is not None:
+            ideal_display = "∞" if math.isinf(ideal) else f"{ideal:.2f}"
+            print(f"{name} (n={size}): ε ≈ {eps:.4f} (ideal {ideal_display})")
+        else:
+            print(f"{name} (n={size}): ε ≈ {eps:.4f}")
 
 if __name__ == "__main__":
     main()
