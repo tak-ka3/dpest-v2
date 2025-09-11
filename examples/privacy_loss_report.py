@@ -105,7 +105,7 @@ def epsilon_from_samples(P: np.ndarray, Q: np.ndarray, bins: int = 50) -> float:
             return np.log(max(ratios))
         return float('inf')
 
-def epsilon_from_samples_matrix(P: np.ndarray, Q: np.ndarray, bins: int = 50) -> float:
+def epsilon_from_samples_matrix(P: np.ndarray, Q: np.ndarray, bins: int = 100) -> float:
     """Estimate ε from samples of vector-valued distributions.
 
     Instead of summing privacy losses for each coordinate independently,
@@ -238,7 +238,7 @@ def laplace_parallel_dist(a: np.ndarray, eps_each: float, n_parallel: int) -> Li
 
 def estimate_algorithm(name: str, pairs: List[Tuple[np.ndarray, np.ndarray]], *,
                        dist_func=None, mechanism=None, eps: float = 0.1,
-                       n_samples: int = 10000, extra=None) -> float:
+                       n_samples: int = 100000, extra=None) -> float:
     eps_max = 0.0
     for D, Dp in pairs:
         if dist_func is not None:
