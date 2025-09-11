@@ -25,8 +25,11 @@ from dpest.mechanisms.sparse_vector_technique import (
 from dpest.mechanisms.laplace import LaplaceMechanism
 from dpest.mechanisms.parallel import LaplaceParallel, SVT34Parallel
 from dpest.mechanisms.prefix_sum import PrefixSum
-from dpest.mechanisms.rappor import OneTimeRappor, Rappor
 from dpest.mechanisms.geometric import TruncatedGeometricMechanism
+from dpest.operations.rappor_op import (
+    one_time_rappor_distribution,
+    rappor_distribution,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -232,6 +235,16 @@ def laplace_parallel_dist(a: np.ndarray, eps_each: float, n_parallel: int) -> Li
     noise_list = create_laplace_noise(b=1/eps_each, size=n_parallel)
     return [add_distributions(x_dist, n) for n in noise_list]
 
+
+def one_time_rappor_dist(a: np.ndarray, eps: float) -> List[Dist]:
+    """Distribution of One-time RAPPOR using analytic operations."""
+    return one_time_rappor_distribution(int(a.item(0)))
+
+
+def rappor_dist(a: np.ndarray, eps: float) -> List[Dist]:
+    """Distribution of full RAPPOR using analytic operations."""
+    return rappor_distribution(int(a.item(0)))
+
 # ---------------------------------------------------------------------------
 # Estimation driver
 # ---------------------------------------------------------------------------
@@ -387,12 +400,12 @@ def main():
     otr_pairs = generate_change_one_pairs(input_sizes["OneTimeRAPPOR"])
     results.append(("OneTimeRAPPOR", input_sizes["OneTimeRAPPOR"],
                     estimate_algorithm("OneTimeRAPPOR", otr_pairs,
-                                       mechanism=OneTimeRappor())))
+                                       dist_func=one_time_rappor_dist)))
 
     rappor_pairs = generate_change_one_pairs(input_sizes["RAPPOR"])
     results.append(("RAPPOR", input_sizes["RAPPOR"],
                     estimate_algorithm("RAPPOR", rappor_pairs,
-                                       mechanism=Rappor())))
+                                       dist_func=rappor_dist)))
 
     results.append(("SVT34Parallel", input_sizes["SVT34Parallel"],
                     estimate_algorithm("SVT34Parallel", svt_pairs_long,

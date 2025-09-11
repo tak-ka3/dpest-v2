@@ -16,6 +16,8 @@ from privacy_loss_report import (
     report_noisy_max4_dist,
     laplace_vec_dist,
     laplace_parallel_dist,
+    one_time_rappor_dist,
+    rappor_dist,
 )
 from dpest.utils.input_patterns import generate_patterns
 from dpest.mechanisms.sparse_vector_technique import (
@@ -28,7 +30,6 @@ from dpest.mechanisms.sparse_vector_technique import (
     NumericalSVT,
 )
 from dpest.mechanisms.prefix_sum import PrefixSum
-from dpest.mechanisms.rappor import OneTimeRappor, Rappor
 from dpest.mechanisms.geometric import TruncatedGeometricMechanism
 from dpest.mechanisms.parallel import SVT34Parallel
 
@@ -141,10 +142,10 @@ def compute_epsilon(name: str) -> float:
         return estimate_algorithm(name, pairs, mechanism=PrefixSum(eps=0.1))
     if name == "OneTimeRAPPOR":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, mechanism=OneTimeRappor())
+        return estimate_algorithm(name, pairs, dist_func=one_time_rappor_dist)
     if name == "RAPPOR":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, mechanism=Rappor())
+        return estimate_algorithm(name, pairs, dist_func=rappor_dist)
     if name == "TruncatedGeometric":
         tg_pairs = [(np.array([2]), np.array([1])), (np.array([1]), np.array([0]))]
         return estimate_algorithm(
