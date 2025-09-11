@@ -8,8 +8,6 @@ import numpy as np
 
 from privacy_loss_report import (
     estimate_algorithm,
-    generate_hist_pairs,
-    generate_change_one_pairs,
     noisy_hist1_dist,
     noisy_hist2_dist,
     report_noisy_max1_dist,
@@ -19,6 +17,7 @@ from privacy_loss_report import (
     laplace_vec_dist,
     laplace_parallel_dist,
 )
+from dpest.utils.input_patterns import generate_patterns
 from dpest.mechanisms.sparse_vector_technique import (
     SparseVectorTechnique1,
     SparseVectorTechnique2,
@@ -89,62 +88,62 @@ def compute_epsilon(name: str) -> float:
     n = INPUT_SIZES[name]
 
     if name == "NoisyHist1":
-        pairs = generate_hist_pairs(n)
+        pairs = list(generate_patterns(n).values())
         return estimate_algorithm(name, pairs, dist_func=noisy_hist1_dist)
     if name == "NoisyHist2":
-        pairs = generate_hist_pairs(n)
+        pairs = list(generate_patterns(n).values())
         return estimate_algorithm(name, pairs, dist_func=noisy_hist2_dist)
     if name == "ReportNoisyMax1":
-        pairs = generate_change_one_pairs(n)
+        pairs = list(generate_patterns(n).values())
         return estimate_algorithm(name, pairs, dist_func=report_noisy_max1_dist)
     if name == "ReportNoisyMax3":
-        pairs = generate_change_one_pairs(n)
+        pairs = list(generate_patterns(n).values())
         return estimate_algorithm(name, pairs, dist_func=report_noisy_max3_dist)
     if name == "LaplaceMechanism":
-        pairs = generate_change_one_pairs(n)
+        pairs = list(generate_patterns(n).values())
         return estimate_algorithm(name, pairs, dist_func=laplace_vec_dist)
     if name == "LaplaceParallel":
-        pairs = [generate_change_one_pairs(INPUT_SIZES["LaplaceMechanism"])[0]]
+        pairs = [generate_patterns(INPUT_SIZES["LaplaceMechanism"])["one_above"]]
         dist = lambda data, eps: laplace_parallel_dist(data, 0.005, INPUT_SIZES["LaplaceParallel"])
         return estimate_algorithm(name, pairs, dist_func=dist)
     if name == "ReportNoisyMax2":
-        pairs = generate_change_one_pairs(n)
+        pairs = list(generate_patterns(n).values())
         return estimate_algorithm(name, pairs, dist_func=report_noisy_max2_dist)
     if name == "ReportNoisyMax4":
-        pairs = generate_change_one_pairs(n)
+        pairs = list(generate_patterns(n).values())
         return estimate_algorithm(name, pairs, dist_func=report_noisy_max4_dist)
     if name == "SVT1":
-        pairs = generate_change_one_pairs(n)
+        pairs = list(generate_patterns(n).values())
         return estimate_algorithm(name, pairs, mechanism=SparseVectorTechnique1(eps=0.1))
     if name == "SVT2":
-        pairs = generate_change_one_pairs(n)
+        pairs = list(generate_patterns(n).values())
         return estimate_algorithm(name, pairs, mechanism=SparseVectorTechnique2(eps=0.1))
     if name == "SVT3":
-        pairs = generate_change_one_pairs(n)
+        pairs = list(generate_patterns(n).values())
         return estimate_algorithm(name, pairs, mechanism=SparseVectorTechnique3(eps=0.1))
     if name == "SVT4":
-        pairs = generate_change_one_pairs(n)
+        pairs = list(generate_patterns(n).values())
         return estimate_algorithm(name, pairs, mechanism=SparseVectorTechnique4(eps=0.1))
     if name == "SVT5":
-        pairs = generate_change_one_pairs(n)
+        pairs = list(generate_patterns(n).values())
         return estimate_algorithm(name, pairs, mechanism=SparseVectorTechnique5(eps=0.1))
     if name == "SVT6":
-        pairs = generate_change_one_pairs(n)
+        pairs = list(generate_patterns(n).values())
         return estimate_algorithm(name, pairs, mechanism=SparseVectorTechnique6(eps=0.1))
     if name == "SVT34Parallel":
-        pairs = generate_change_one_pairs(n)
+        pairs = list(generate_patterns(n).values())
         return estimate_algorithm(name, pairs, mechanism=SVT34Parallel(eps=0.1))
     if name == "NumericalSVT":
-        pairs = generate_change_one_pairs(n)
+        pairs = list(generate_patterns(n).values())
         return estimate_algorithm(name, pairs, mechanism=NumericalSVT(eps=0.1))
     if name == "PrefixSum":
-        pairs = generate_change_one_pairs(n)
+        pairs = list(generate_patterns(n).values())
         return estimate_algorithm(name, pairs, mechanism=PrefixSum(eps=0.1))
     if name == "OneTimeRAPPOR":
-        pairs = generate_change_one_pairs(n)
+        pairs = list(generate_patterns(n).values())
         return estimate_algorithm(name, pairs, mechanism=OneTimeRappor())
     if name == "RAPPOR":
-        pairs = generate_change_one_pairs(n)
+        pairs = list(generate_patterns(n).values())
         return estimate_algorithm(name, pairs, mechanism=Rappor())
     if name == "TruncatedGeometric":
         tg_pairs = [(np.array([2]), np.array([1])), (np.array([1]), np.array([0]))]

@@ -11,6 +11,7 @@ from dpest.core import Dist
 from dpest.engine import AlgorithmBuilder, vector_argmax, vector_max
 from dpest.operations import add_distributions
 from dpest.noise import create_laplace_noise, create_exponential_noise
+from dpest.utils.input_patterns import generate_patterns
 
 from dpest.mechanisms.noisy_hist import NoisyHist1, NoisyHist2
 from dpest.mechanisms.report_noisy_max import (
@@ -260,28 +261,13 @@ def estimate_algorithm(name: str, pairs: List[Tuple[np.ndarray, np.ndarray]], *,
     return eps_max
 
 def generate_hist_pairs(length: int) -> List[Tuple[np.ndarray, np.ndarray]]:
-    base = np.ones(length)
-    pairs = []
-    for i in range(length):
-        for j in range(length):
-            if i == j:
-                continue
-            a = base.copy()
-            b = base.copy()
-            b[i] += 1
-            b[j] -= 1
-            pairs.append((a, b))
-    return pairs
+    """Return the standard set of adjacency pairs of given length."""
+    return list(generate_patterns(length).values())
+
 
 def generate_change_one_pairs(length: int) -> List[Tuple[np.ndarray, np.ndarray]]:
-    base = np.ones(length)
-    pairs = []
-    for i in range(length):
-        a = base.copy()
-        b = base.copy()
-        b[i] += 1
-        pairs.append((a, b))
-    return pairs
+    """Return the standard set of adjacency pairs of given length."""
+    return list(generate_patterns(length).values())
 
 
 def main():

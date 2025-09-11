@@ -17,6 +17,7 @@ from dpest.operations import (
 )
 from dpest.noise import create_laplace_noise, Laplace
 from dpest.utils.privacy import estimate_privacy_loss
+from dpest.utils.input_patterns import generate_patterns
 
 # mechanisms モジュールを dpsniper.mechanisms として参照できるように設定
 import types
@@ -27,42 +28,6 @@ dp_module.mechanisms = mechanisms
 sys.modules['dpsniper'] = dp_module
 sys.modules['dpsniper.mechanisms'] = mechanisms
 sys.modules['dpsniper.mechanisms.abstract'] = dpest.mechanisms.abstract
-
-
-def generate_patterns(n: int):
-    """画像1に基づく入力パターンを長さnで生成"""
-    ones = np.ones(n, dtype=int)
-    patterns = {
-        "one_above": (
-            ones,
-            np.concatenate(([2], np.ones(n - 1, dtype=int)))
-        ),
-        "one_below": (
-            ones,
-            np.concatenate(([0], np.ones(n - 1, dtype=int)))
-        ),
-        "one_above_rest_below": (
-            ones,
-            np.concatenate(([2], np.zeros(n - 1, dtype=int)))
-        ),
-        "one_below_rest_above": (
-            ones,
-            np.concatenate(([0], np.full(n - 1, 2, dtype=int)))
-        ),
-        "half_half": (
-            ones,
-            np.concatenate((np.zeros(n // 2, dtype=int), np.full(n - n // 2, 2, dtype=int)))
-        ),
-        "all_above_all_below": (
-            ones,
-            np.full(n, 2, dtype=int)
-        ),
-        "x_shape": (
-            np.concatenate((np.ones(n // 2, dtype=int), np.zeros(n - n // 2, dtype=int))),
-            np.concatenate((np.zeros(n // 2, dtype=int), np.ones(n - n // 2, dtype=int)))
-        ),
-    }
-    return {k: (np.array(a), np.array(b)) for k, (a, b) in patterns.items()}
 
 
 def test_argmax_operations():
