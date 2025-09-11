@@ -124,8 +124,9 @@ class Max:
             # f_i(z) * ∏_{j≠i} F_j(z) を加算
             f_max += f_i * cdf_product
         
+        # normalize density before creating Dist to avoid mass errors
+        f_max = f_max / (np.sum(f_max) * dx)
         result = Dist.from_density(x_grid, f_max)
-        result.normalize()
         return result
     
     @staticmethod
