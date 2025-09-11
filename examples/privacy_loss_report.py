@@ -151,6 +151,8 @@ def epsilon_from_samples_matrix(P: np.ndarray, Q: np.ndarray, bins: int = 50) ->
     dim = P.shape[1]
     # Fall back to coordinate-wise estimation if the joint histogram would be
     # too large (bins^dim bins)
+    # ベクトル全体を直接推定できない場合でも、各次元に分解して逐次合成を適用すれば、
+    # 差分プライバシーの安全な（過小評価にはならない）推定になる
     if bins ** dim > 1_000_000:
         return float(
             sum(epsilon_from_samples(P[:, i], Q[:, i], bins) for i in range(dim))
