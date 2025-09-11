@@ -16,6 +16,7 @@ from .rappor_op import (
     rappor_distribution,
     one_time_rappor_distribution,
 )
+from .geometric_op import TruncatedGeometric, truncated_geometric_distribution
 
 __all__ = [
     'Add', 'Affine', 'add_distributions', 'affine_transform',
@@ -25,4 +26,5 @@ __all__ = [
     'Sampled', 'sampled_distribution',
     'Compare', 'Condition', 'compare_geq', 'condition_mixture',
     'Rappor', 'OneTimeRappor', 'rappor_distribution', 'one_time_rappor_distribution',
+    'TruncatedGeometric', 'truncated_geometric_distribution',
 ]
