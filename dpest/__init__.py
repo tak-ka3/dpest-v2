@@ -5,14 +5,15 @@
 """
 
 from .core import Dist, Interval
-from .noise import Laplace, create_laplace_noise
+from .noise import Laplace, Exponential, create_laplace_noise, create_exponential_noise
 from .operations import (
     Add, Affine, add_distributions, affine_transform,
     Max, Min, max_distribution, min_distribution,
     Argmax, argmax_distribution,
     Sampled, sampled_distribution,
 )
-from .engine import Engine, compile, AlgorithmBuilder, Laplace_dist, vector_argmax, vector_max, vector_min
+from .engine import (Engine, compile, AlgorithmBuilder, Laplace_dist, Exponential_dist,
+                     vector_argmax, vector_max, vector_min)
 
 __version__ = "0.1.0"
 
@@ -20,7 +21,8 @@ __all__ = [
     # 中核クラス
     'Dist', 'Interval',
     # ノイズ機構
-    'Laplace', 'create_laplace_noise', 'Laplace_dist',
+    'Laplace', 'Exponential', 'create_laplace_noise', 'create_exponential_noise',
+    'Laplace_dist', 'Exponential_dist',
     # 演算
     'Add', 'Affine', 'add_distributions', 'affine_transform',
     'Argmax', 'argmax_distribution', 'vector_argmax',

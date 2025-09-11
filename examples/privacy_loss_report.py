@@ -10,11 +10,11 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from dpest.core import Dist
 from dpest.engine import AlgorithmBuilder, vector_argmax, vector_max
 from dpest.operations import add_distributions
-from dpest.noise import create_laplace_noise
+from dpest.noise import create_laplace_noise, create_exponential_noise
 
 from dpest.mechanisms.noisy_hist import NoisyHist1, NoisyHist2
 from dpest.mechanisms.report_noisy_max import (
-    ReportNoisyMax1, ReportNoisyMax2, ReportNoisyMax3, ReportNoisyMax4,
+    ReportNoisyMax1, ReportNoisyMax3,
 )
 from dpest.mechanisms.sparse_vector_technique import (
     SparseVectorTechnique1, SparseVectorTechnique2, SparseVectorTechnique3,
@@ -205,6 +205,22 @@ def report_noisy_max3_dist(a: np.ndarray, eps: float) -> Dist:
     z_dists = AlgorithmBuilder.vector_add(x_dists, noise_dists)
     return vector_max(z_dists)
 
+def report_noisy_max2_dist(a: np.ndarray, eps: float) -> Dist:
+    x_dists = [Dist.deterministic(float(v)) for v in a]
+    noise_dists = create_exponential_noise(b=2/eps, size=len(a))
+    z_dists = AlgorithmBuilder.vector_add(x_dists, noise_dists)
+    dist = vector_argmax(z_dists)
+    dist.normalize()
+    return dist
+
+def report_noisy_max4_dist(a: np.ndarray, eps: float) -> Dist:
+    x_dists = [Dist.deterministic(float(v)) for v in a]
+    noise_dists = create_exponential_noise(b=2/eps, size=len(a))
+    z_dists = AlgorithmBuilder.vector_add(x_dists, noise_dists)
+    dist = vector_max(z_dists)
+    dist.normalize()
+    return dist
+
 def laplace_vec_dist(a: np.ndarray, eps: float) -> List[Dist]:
     x_dists = [Dist.deterministic(float(v)) for v in a]
     noise_dists = create_laplace_noise(b=1/eps, size=len(a))
@@ -343,15 +359,13 @@ def main():
                         dist_func=lambda data, eps: laplace_parallel_dist(data, 0.005,
                                                                           input_sizes["LaplaceParallel"]))))
 
-    # Sampling-based algorithms
+    # Algorithms computed analytically
     results.append(("ReportNoisyMax2", input_sizes["ReportNoisyMax2"],
-                    estimate_algorithm(
-                        "ReportNoisyMax2", vec_pairs,
-                        mechanism=ReportNoisyMax2(eps=0.1))))
+                    estimate_algorithm("ReportNoisyMax2", vec_pairs,
+                                       dist_func=report_noisy_max2_dist)))
     results.append(("ReportNoisyMax4", input_sizes["ReportNoisyMax4"],
-                    estimate_algorithm(
-                        "ReportNoisyMax4", vec_pairs,
-                        mechanism=ReportNoisyMax4(eps=0.1))))
+                    estimate_algorithm("ReportNoisyMax4", vec_pairs,
+                                       dist_func=report_noisy_max4_dist)))
 
     svt_pairs_short = generate_change_one_pairs(input_sizes["SVT1"])
     svt_pairs_long = generate_change_one_pairs(input_sizes["SVT5"])

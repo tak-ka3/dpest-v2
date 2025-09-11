@@ -86,3 +86,76 @@ def create_laplace_noise(b: float, size: int = None) -> Union[Dist, List[Dist]]:
     """便利関数：ラプラスノイズ分布を作成"""
     laplace = Laplace(b=b, size=size)
     return laplace.to_dist()
+
+
+class Exponential:
+    """指数分布ノイズ機構
+
+    PDF: f(x) = (1/b) * exp(-(x-μ)/b) for x ≥ μ
+    """
+
+    def __init__(self, b: float = 1.0, mu: float = 0.0, size: Union[int, None] = None):
+        """
+        Args:
+            b: スケールパラメータ（平均）
+            mu: シフトパラメータ
+            size: ベクトルサイズ（Noneの場合はスカラー）
+        """
+        if b <= 0:
+            raise ValueError(f"Scale parameter b must be positive, got {b}")
+
+        self.b = b
+        self.mu = mu
+        self.size = size
+
+    def to_dist(self, grid_size: int = 1000, support_range: float = None) -> Union[Dist, List[Dist]]:
+        """指数分布をDist形式に変換"""
+        if support_range is None:
+            # 十分な確率質量を含む範囲を設定
+            support_range = self.b * 20
+
+        x = np.linspace(self.mu, self.mu + support_range, grid_size)
+        f = self._pdf(x)
+        dx = x[1] - x[0]
+        f = f / (np.sum(f) * dx)
+
+        if self.size is None:
+            def sampler(n, mu=self.mu, b=self.b):
+                return np.random.exponential(scale=b, size=(n, 1)) + mu
+
+            dist = Dist.from_density(x, f, sampler=sampler, sampler_index=0)
+            dist.support = [Interval(self.mu, self.mu + support_range)]
+            return dist
+        else:
+            dists = []
+            for _ in range(self.size):
+                def sampler(n, mu=self.mu, b=self.b):
+                    return np.random.exponential(scale=b, size=(n, 1)) + mu
+
+                dist = Dist.from_density(x, f, sampler=sampler, sampler_index=0)
+                dist.support = [Interval(self.mu, self.mu + support_range)]
+                dists.append(dist)
+            return dists
+
+    def _pdf(self, x: np.ndarray) -> np.ndarray:
+        """確率密度関数"""
+        f = np.zeros_like(x)
+        mask = x >= self.mu
+        f[mask] = (1 / self.b) * np.exp(-(x[mask] - self.mu) / self.b)
+        return f
+
+    def sample(self, n: int = 1) -> np.ndarray:
+        if self.size is None:
+            return np.random.exponential(scale=self.b, size=n) + self.mu
+        else:
+            return np.random.exponential(scale=self.b, size=(n, self.size)) + self.mu
+
+    def __repr__(self):
+        size_str = f", size={self.size}" if self.size is not None else ""
+        return f"Exponential(b={self.b}, mu={self.mu}{size_str})"
+
+
+def create_exponential_noise(b: float, size: int = None) -> Union[Dist, List[Dist]]:
+    """指数ノイズ分布を作成"""
+    exp = Exponential(b=b, size=size)
+    return exp.to_dist()

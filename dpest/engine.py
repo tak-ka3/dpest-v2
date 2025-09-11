@@ -6,7 +6,7 @@
 
 from typing import Callable, Any, List, Union
 from .core import Dist
-from .noise import Laplace, create_laplace_noise
+from .noise import Laplace, Exponential, create_laplace_noise, create_exponential_noise
 from .operations import (
     Add,
     Affine,
@@ -37,6 +37,7 @@ class Engine:
         self.operations = {
             'input': self._input_op,
             'laplace': self._laplace_op,
+            'exponential': self._exponential_op,
             'add': self._add_op,
             'affine': self._affine_op,
             'argmax': self._argmax_op,
@@ -103,6 +104,12 @@ class Engine:
         b = node.params.get('b', 1.0)
         size = node.params.get('size')
         return create_laplace_noise(b=b, size=size)
+
+    def _exponential_op(self, node: ComputationNode) -> Union[Dist, List[Dist]]:
+        """指数分布操作"""
+        b = node.params.get('b', 1.0)
+        size = node.params.get('size')
+        return create_exponential_noise(b=b, size=size)
     
     def _add_op(self, node: ComputationNode) -> Union[Dist, List[Dist]]:
         """加法操作"""
@@ -189,11 +196,22 @@ class AlgorithmBuilder:
         laplace = Laplace(b=b, size=size)
         return laplace.to_dist()
 
+    @staticmethod
+    def create_exponential_vector(b: float, size: int) -> List[Dist]:
+        """指数分布のベクトルを作成"""
+        exp = Exponential(b=b, size=size)
+        return exp.to_dist()
+
 
 # 使いやすさのためのエイリアス
 def Laplace_dist(b: float, size: int = None) -> Union[Dist, List[Dist]]:
     """ラプラス分布を作成（アルゴリズム記述用）"""
     return create_laplace_noise(b=b, size=size)
+
+
+def Exponential_dist(b: float, size: int = None) -> Union[Dist, List[Dist]]:
+    """指数分布を作成（アルゴリズム記述用）"""
+    return create_exponential_noise(b=b, size=size)
 
 
 def vector_argmax(distributions: List[Dist]) -> Dist:

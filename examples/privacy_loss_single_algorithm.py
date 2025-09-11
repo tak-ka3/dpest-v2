@@ -14,13 +14,10 @@ from privacy_loss_report import (
     noisy_hist2_dist,
     report_noisy_max1_dist,
     report_noisy_max3_dist,
+    report_noisy_max2_dist,
+    report_noisy_max4_dist,
     laplace_vec_dist,
     laplace_parallel_dist,
-)
-
-from dpest.mechanisms.report_noisy_max import (
-    ReportNoisyMax2,
-    ReportNoisyMax4,
 )
 from dpest.mechanisms.sparse_vector_technique import (
     SparseVectorTechnique1,
@@ -112,10 +109,10 @@ def compute_epsilon(name: str) -> float:
         return estimate_algorithm(name, pairs, dist_func=dist)
     if name == "ReportNoisyMax2":
         pairs = generate_change_one_pairs(n)
-        return estimate_algorithm(name, pairs, mechanism=ReportNoisyMax2(eps=0.1))
+        return estimate_algorithm(name, pairs, dist_func=report_noisy_max2_dist)
     if name == "ReportNoisyMax4":
         pairs = generate_change_one_pairs(n)
-        return estimate_algorithm(name, pairs, mechanism=ReportNoisyMax4(eps=0.1))
+        return estimate_algorithm(name, pairs, dist_func=report_noisy_max4_dist)
     if name == "SVT1":
         pairs = generate_change_one_pairs(n)
         return estimate_algorithm(name, pairs, mechanism=SparseVectorTechnique1(eps=0.1))
