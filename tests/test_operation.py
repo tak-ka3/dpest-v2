@@ -263,17 +263,15 @@ def test_svt_conditional_operation():
     """条件演算を用いたSparseVectorTechniqueの分布計算テスト"""
     print("=== SparseVectorTechnique 条件演算テスト ===")
 
-    from dpest.mechanisms.sparse_vector_technique import SparseVectorTechnique5
+    from dpest.operations import svt5_distribution
     # 画像1のパターンを長さ10で生成
     patterns = generate_patterns(10)
 
     # 画像2の推奨値に基づき eps=0.1 を使用
-    svt = SparseVectorTechnique5(eps=0.1, t=1.0)
-
     for name, (a, a_prime) in patterns.items():
         print(f"-- pattern: {name} --")
-        dists_a = svt.dist(a)
-        dists_ap = svt.dist(a_prime)
+        dists_a = svt5_distribution(a, eps=0.1, t=1.0)
+        dists_ap = svt5_distribution(a_prime, eps=0.1, t=1.0)
         masses_a = [d.total_mass() for d in dists_a]
         masses_ap = [d.total_mass() for d in dists_ap]
         print(f"  a ={list(a)} masses={[f'{m:.3f}' for m in masses_a]}")

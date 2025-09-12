@@ -9,7 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from dpest.core import Dist
 from dpest.engine import AlgorithmBuilder, vector_argmax, vector_max
-from dpest.operations import add_distributions
+from dpest.operations import add_distributions, svt5_distribution
 from dpest.noise import create_laplace_noise, create_exponential_noise
 from dpest.utils.input_patterns import generate_patterns
 
@@ -19,8 +19,7 @@ from dpest.mechanisms.report_noisy_max import (
 )
 from dpest.mechanisms.sparse_vector_technique import (
     SparseVectorTechnique1, SparseVectorTechnique2, SparseVectorTechnique3,
-    SparseVectorTechnique4, SparseVectorTechnique5, SparseVectorTechnique6,
-    NumericalSVT,
+    SparseVectorTechnique4, SparseVectorTechnique6, NumericalSVT,
 )
 from dpest.mechanisms.laplace import LaplaceMechanism
 from dpest.mechanisms.parallel import LaplaceParallel, SVT34Parallel
@@ -236,6 +235,11 @@ def laplace_parallel_dist(a: np.ndarray, eps_each: float, n_parallel: int) -> Li
     return [add_distributions(x_dist, n) for n in noise_list]
 
 
+def svt5_dist(a: np.ndarray, eps: float, t: float = 1.0) -> List[Dist]:
+    """Distribution of Sparse Vector Technique 5 using analytic operations."""
+    return svt5_distribution(a, eps=eps, t=t)
+
+
 def one_time_rappor_dist(a: np.ndarray, eps: float) -> List[Dist]:
     """Distribution of One-time RAPPOR using analytic operations."""
     return one_time_rappor_distribution(int(a.item(0)))
@@ -382,7 +386,7 @@ def main():
                                        mechanism=SparseVectorTechnique4(eps=0.1))))
     results.append(("SVT5", input_sizes["SVT5"],
                     estimate_algorithm("SVT5", svt_pairs_long,
-                                       mechanism=SparseVectorTechnique5(eps=0.1))))
+                                       dist_func=svt5_dist)))
     results.append(("SVT6", input_sizes["SVT6"],
                     estimate_algorithm("SVT6", svt_pairs_long,
                                        mechanism=SparseVectorTechnique6(eps=0.1))))
