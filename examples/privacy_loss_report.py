@@ -15,7 +15,7 @@ from dpest.noise import create_laplace_noise, create_exponential_noise
 from dpest.utils.input_patterns import generate_patterns
 
 from dpest.mechanisms.sparse_vector_technique import (
-    SparseVectorTechnique1, SparseVectorTechnique2, SparseVectorTechnique3,
+    SparseVectorTechnique2, SparseVectorTechnique3,
     SparseVectorTechnique4, SparseVectorTechnique6, NumericalSVT,
 )
 from dpest.mechanisms.parallel import SVT34Parallel
@@ -78,6 +78,61 @@ def laplace_parallel_dist(a: np.ndarray, eps_each: float, n_parallel: int) -> Li
     x_dist = Dist.deterministic(float(a.item(0)))
     noise_list = create_laplace_noise(b=1/eps_each, size=n_parallel)
     return [add_distributions(x_dist, n) for n in noise_list]
+
+
+def svt1_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> List[Dist]:
+    """解析的手法でSVT1の出力分布を計算する関数"""
+    # 入力配列を1次元化する
+    x = np.atleast_1d(a)
+    # 全体のプライバシー予算εをしきい値とクエリ用に分割
+    eps1 = eps / 2.0  # しきい値計算に使うε1
+    eps2 = eps - eps1  # クエリ評価に使うε2
+    # しきい値用ノイズρ ~ Laplace(1/ε1)
+    rho_dist = create_laplace_noise(b=1 / eps1)
+    # しきい値tにρを加えた分布
+    thresh_dist = add_distributions(rho_dist, Dist.deterministic(t))
+    # 各クエリに加えるノイズ ~ Laplace(2c/ε2)
+    noise_dists = create_laplace_noise(b=2 * c / eps2, size=len(x))
+
+    # trueの出力回数の分布（k回trueを出した確率）を保持
+    count_probs = [1.0] + [0.0] * c
+    results: List[Dist] = []
+    # 各クエリを順に評価
+    for val, noise in zip(x, noise_dists):
+        # クエリ値にノイズを加えた分布
+        val_dist = add_distributions(Dist.deterministic(float(val)), noise)
+        # しきい値以上かどうかの比較結果の分布
+        cmp_dist = compare_geq(val_dist, thresh_dist)
+        # 比較が真(1)になる確率
+        p_true = next((w for v, w in cmp_dist.atoms if v == 1.0), 0.0)
+        # 比較が偽(0)になる確率
+        p_false = next((w for v, w in cmp_dist.atoms if v == 0.0), 0.0)
+        # 既にc回trueを出力してアボートしている確率
+        p_abort = count_probs[c]
+        # まだアボートしていない状態で1を出力する確率
+        p1 = sum(count_probs[:c]) * p_true
+        # まだアボートしていない状態で0を出力する確率
+        p0 = sum(count_probs[:c]) * p_false
+        atoms = [(1.0, p1), (0.0, p0)]
+        if p_abort > 0:
+            # アボート(-1)を明示的に出力する確率
+            atoms.append((-1.0, p_abort))
+        # 出力の確率分布を構成
+        res_dist = Dist.from_atoms(atoms)
+        res_dist.normalize()
+        results.append(res_dist)
+
+        # trueの出力回数の分布を更新
+        new_counts = [0.0] * (c + 1)
+        for k in range(c):
+            prob_k = count_probs[k]  # trueをk回出した状態の確率
+            new_counts[k] += prob_k * p_false  # falseなら回数は変化なし
+            new_counts[min(c, k + 1)] += prob_k * p_true  # trueなら回数+1（上限c）
+        # すでにアボートしている確率を保持
+        new_counts[c] += count_probs[c]
+        count_probs = new_counts
+
+    return results
 
 
 def svt5_dist(a: np.ndarray, eps: float, t: float = 1.0) -> List[Dist]:
@@ -268,7 +323,7 @@ def main():
     svt_pairs_long = generate_change_one_pairs(input_sizes["SVT5"])
     results.append(("SVT1", input_sizes["SVT1"],
                     estimate_algorithm("SVT1", svt_pairs_short,
-                                       mechanism=SparseVectorTechnique1(eps=0.1))))
+                                       dist_func=svt1_dist)))
     results.append(("SVT2", input_sizes["SVT2"],
                     estimate_algorithm("SVT2", svt_pairs_short,
                                        mechanism=SparseVectorTechnique2(eps=0.1))))
