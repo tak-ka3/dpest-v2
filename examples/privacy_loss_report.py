@@ -641,6 +641,34 @@ def svt5_dist(a: np.ndarray, eps: float, t: float = 1.0) -> List[Dist]:
     return results
 
 
+def svt5_joint_dist(
+    a: np.ndarray,
+    eps: float,
+    t: float = 1.0,
+    grid_size: int = 1000,
+) -> Dist:
+    """Return joint output distribution of SVT5."""
+    x = np.atleast_1d(a)
+    eps1 = eps / 2.0
+    rho_dist = create_laplace_noise(b=1 / eps1, grid_size=grid_size)
+
+    rho_x = rho_dist.density["x"]
+    rho_f = rho_dist.density["f"]
+    rho_dx = rho_dist.density["dx"]
+
+    sequence_probs: Dict[Tuple[float, ...], float] = {}
+    for r, weight in zip(rho_x, rho_f):
+        thresh = t + r
+        seq = tuple(1.0 if val >= thresh else 0.0 for val in x)
+        prob = weight * rho_dx
+        sequence_probs[seq] = sequence_probs.get(seq, 0.0) + prob
+
+    atoms = [(seq, p) for seq, p in sequence_probs.items()]
+    dist = Dist.from_atoms(atoms)
+    dist.normalize()
+    return dist
+
+
 def one_time_rappor_dist(
     a: np.ndarray,
     eps: float,
@@ -842,16 +870,16 @@ def main():
                                        joint_dist_func=svt2_joint_dist)))
     results.append(("SVT3", input_sizes["SVT3"],
                     estimate_algorithm("SVT3", svt_pairs_short,
-                                       dist_func=svt3_dist)))
+                                       joint_dist_func=svt3_joint_dist)))
     results.append(("SVT4", input_sizes["SVT4"],
                     estimate_algorithm("SVT4", svt_pairs_short,
-                                       dist_func=svt4_dist)))
+                                       joint_dist_func=svt4_joint_dist)))
     results.append(("SVT5", input_sizes["SVT5"],
                     estimate_algorithm("SVT5", svt_pairs_long,
-                                       dist_func=svt5_dist)))
+                                       joint_dist_func=svt5_joint_dist)))
     results.append(("SVT6", input_sizes["SVT6"],
                     estimate_algorithm("SVT6", svt_pairs_long,
-                                       dist_func=svt6_dist)))
+                                       joint_dist_func=svt6_joint_dist)))
 
     results.append(("NumericalSVT", input_sizes["NumericalSVT"],
                     estimate_algorithm("NumericalSVT",
