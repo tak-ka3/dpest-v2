@@ -3,7 +3,7 @@ import sys
 import math
 import numpy as np
 import mmh3
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 # Allow importing the dpest package when running this file directly
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -135,6 +135,51 @@ def svt1_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> List[Dis
     return results
 
 
+def svt1_joint_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> Dist:
+    """Return joint output distribution of SVT1.
+
+    This enumerates the probability of every output vector, inserting ``-1``
+    after the mechanism aborts.  Treating the whole vector as one random
+    variable captures the dependencies among coordinates.
+    """
+    x = np.atleast_1d(a)
+    eps1 = eps / 2.0
+    eps2 = eps - eps1
+    rho_dist = create_laplace_noise(b=1 / eps1)
+    thresh_dist = add_distributions(rho_dist, Dist.deterministic(t))
+    noise_dists = create_laplace_noise(b=2 * c / eps2, size=len(x))
+
+    p_list: List[Tuple[float, float]] = []
+    for val, noise in zip(x, noise_dists):
+        val_dist = add_distributions(Dist.deterministic(float(val)), noise)
+        cmp_dist = compare_geq(val_dist, thresh_dist)
+        p_true = next((w for v, w in cmp_dist.atoms if v == 1.0), 0.0)
+        p_false = next((w for v, w in cmp_dist.atoms if v == 0.0), 0.0)
+        p_list.append((p_true, p_false))
+
+    sequences: Dict[Tuple[float, ...], float] = {(): 1.0}
+    for p_true, p_false in p_list:
+        new_seq: Dict[Tuple[float, ...], float] = {}
+        for seq, prob in sequences.items():
+            if seq and seq[-1] == -1.0:
+                new_seq[seq + (-1.0,)] = new_seq.get(seq + (-1.0,), 0.0) + prob
+                continue
+            k = seq.count(1.0)
+            if k >= c:
+                new_seq[seq + (-1.0,)] = new_seq.get(seq + (-1.0,), 0.0) + prob
+                continue
+            seq_true = seq + (1.0,)
+            seq_false = seq + (0.0,)
+            new_seq[seq_true] = new_seq.get(seq_true, 0.0) + prob * p_true
+            new_seq[seq_false] = new_seq.get(seq_false, 0.0) + prob * p_false
+        sequences = new_seq
+
+    atoms = [(seq, p) for seq, p in sequences.items()]
+    dist = Dist.from_atoms(atoms)
+    dist.normalize()
+    return dist
+
+
 def svt5_dist(a: np.ndarray, eps: float, t: float = 1.0) -> List[Dist]:
     """Distribution of Sparse Vector Technique 5 using analytic operations."""
     x = np.atleast_1d(a)
@@ -202,12 +247,34 @@ def rappor_dist(
 # Estimation driver
 # ---------------------------------------------------------------------------
 
-def estimate_algorithm(name: str, pairs: List[Tuple[np.ndarray, np.ndarray]], *,
-                       dist_func=None, mechanism=None, eps: float = 0.1,
-                       n_samples: int = 100000, extra=None) -> float:
+def estimate_algorithm(
+    name: str,
+    pairs: List[Tuple[np.ndarray, np.ndarray]],
+    *,
+    dist_func=None,
+    joint_dist_func=None,
+    mechanism=None,
+    eps: float = 0.1,
+    n_samples: int = 100000,
+    extra=None,
+) -> float:
+    """Estimate privacy loss for an algorithm.
+
+    If ``joint_dist_func`` is provided, it is assumed to return the joint
+    output distribution and dependencies between coordinates are respected.
+    Otherwise lists of marginals are summed using ``epsilon_from_list``.
+    """
     eps_max = 0.0
     for D, Dp in pairs:
-        if dist_func is not None:
+        if joint_dist_func is not None:
+            if extra is None:
+                P = joint_dist_func(D, eps)
+                Q = joint_dist_func(Dp, eps)
+            else:
+                P = joint_dist_func(D, eps, *extra)
+                Q = joint_dist_func(Dp, eps, *extra)
+            eps_val = epsilon_from_dist(P, Q)
+        elif dist_func is not None:
             if extra is None:
                 P = dist_func(D, eps)
                 Q = dist_func(Dp, eps)
@@ -222,8 +289,7 @@ def estimate_algorithm(name: str, pairs: List[Tuple[np.ndarray, np.ndarray]], *,
             P_samples = mechanism.m(D, n_samples)
             Q_samples = mechanism.m(Dp, n_samples)
             eps_val = epsilon_from_samples_matrix(P_samples, Q_samples)
-        if eps_val > eps_max:
-            eps_max = eps_val
+        eps_max = max(eps_max, eps_val)
     return eps_max
 
 def generate_hist_pairs(length: int) -> List[Tuple[np.ndarray, np.ndarray]]:
@@ -323,7 +389,7 @@ def main():
     svt_pairs_long = generate_change_one_pairs(input_sizes["SVT5"])
     results.append(("SVT1", input_sizes["SVT1"],
                     estimate_algorithm("SVT1", svt_pairs_short,
-                                       dist_func=svt1_dist)))
+                                       joint_dist_func=svt1_joint_dist)))
     results.append(("SVT2", input_sizes["SVT2"],
                     estimate_algorithm("SVT2", svt_pairs_short,
                                        mechanism=SparseVectorTechnique2(eps=0.1))))

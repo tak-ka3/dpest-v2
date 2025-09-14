@@ -1,5 +1,7 @@
 # Privacy Loss Report
 
+SVT1 の ε は依存する出力ベクトルを `svt1_joint_dist` で列挙したジョイント分布から評価しており、各座標を独立と仮定する場合よりも小さくなる。
+
 | Algorithm | Input size | Estimated ε | Ideal ε |
 |-----------|------------|-------------|---------|
 | NoisyHist1 | 5 | 0.5001 | 0.10 |
@@ -10,7 +12,7 @@
 | LaplaceParallel | 20 | 0.1003 | 0.10 |
 | ReportNoisyMax2 | 5 | 0.0964 | 0.10 |
 | ReportNoisyMax4 | 5 | 8.6719 | ∞ |
-| SVT1 | 10 | 0.3397 | 0.10 |
+| SVT1 | 10 | 0.0969 | 0.10 |
 | SVT2 | 10 | 0.2854 | 0.10 |
 | SVT3 | 10 | 11.8574 | ∞ |
 | SVT4 | 10 | 0.4904 | 0.18 |
