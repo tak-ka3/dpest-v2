@@ -7,7 +7,7 @@ AddやAffineなどの基本的な確率分布演算を実装します。
 import numpy as np
 from typing import List, Union, Optional
 from scipy import interpolate
-from ..core import Dist, Interval, merge_atoms
+from ..core import Dist, Interval, merge_atoms, Node
 
 
 class Add:
@@ -59,8 +59,11 @@ class Add:
             hist, bin_edges = np.histogram(sums, bins=100, density=True)
             centers = (bin_edges[:-1] + bin_edges[1:]) / 2
             dx = bin_edges[1] - bin_edges[0]
+            node = Node(op='Add', inputs=[getattr(x_dist, 'node', None), getattr(y_dist, 'node', None)],
+                        dependencies=x_dist.dependencies | y_dist.dependencies)
             result = Dist(density={'x': centers, 'f': hist, 'dx': dx},
-                          dependencies=x_dist.dependencies | y_dist.dependencies)
+                          dependencies=x_dist.dependencies | y_dist.dependencies,
+                          node=node)
             result.normalize()
             # サンプラーが存在する場合は結果にも伝播
             if base_sampler is not None:
@@ -138,9 +141,12 @@ class Add:
         # 点質量をマージ
         result_atoms = merge_atoms(result_atoms)
         
+        node = Node(op='Add', inputs=[getattr(x_dist, 'node', None), getattr(y_dist, 'node', None)],
+                    dependencies=x_dist.dependencies | y_dist.dependencies)
         result = Dist(atoms=result_atoms, density=result_density,
                       support=result_support,
-                      dependencies=x_dist.dependencies | y_dist.dependencies)
+                      dependencies=x_dist.dependencies | y_dist.dependencies,
+                      node=node)
         result.normalize()
 
         # サンプリング関数の伝播

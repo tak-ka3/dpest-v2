@@ -43,6 +43,15 @@ class Interval:
         return Interval(self.low + other.low, self.high + other.high)
 
 
+@dataclass
+class Node:
+    """計算グラフのノード"""
+    op: str
+    inputs: List['Node']
+    dependencies: Set[int]
+    needs_sampling: bool = False
+
+
 class Dist:
     """確率分布の表現
     
@@ -52,14 +61,15 @@ class Dist:
     error_bounds: 誤差上界の情報
     """
     
-    def __init__(self, 
+    def __init__(self,
                  atoms: Optional[List[Tuple[float, float]]] = None,
                  density: Optional[Dict[str, np.ndarray]] = None,
                  support: Optional[List[Interval]] = None,
                  error_bounds: Optional[Dict[str, float]] = None,
                  sampler: Optional[Callable[[int], np.ndarray]] = None,
                  sampler_index: Optional[int] = None,
-                 dependencies: Optional[Set[int]] = None):
+                 dependencies: Optional[Set[int]] = None,
+                 node: Optional[Node] = None):
         self.atoms = atoms or []  # [(value, weight), ...]
         self.density = density or {}  # {'x': grid_x, 'f': grid_f, 'dx': dx}
         self.support = support or []
@@ -76,6 +86,9 @@ class Dist:
             self.dependencies = {_new_dep_id()}
         else:
             self.dependencies = set()
+
+        # 計算グラフノード
+        self.node = node
 
         # 正規化チェック
         self._validate()
@@ -114,21 +127,23 @@ class Dist:
     def from_atoms(cls, atoms: List[Tuple[float, float]],
                    sampler: Optional[Callable[[int], np.ndarray]] = None,
                    sampler_index: Optional[int] = None,
-                   dependencies: Optional[Set[int]] = None) -> 'Dist':
+                   dependencies: Optional[Set[int]] = None,
+                   node: Optional[Node] = None) -> 'Dist':
         """点質量のみから分布を作成"""
         return cls(atoms=atoms, sampler=sampler, sampler_index=sampler_index,
-                   dependencies=dependencies)
+                   dependencies=dependencies, node=node)
 
     @classmethod
     def from_density(cls, x: np.ndarray, f: np.ndarray,
                      sampler: Optional[Callable[[int], np.ndarray]] = None,
                      sampler_index: Optional[int] = None,
-                     dependencies: Optional[Set[int]] = None) -> 'Dist':
+                     dependencies: Optional[Set[int]] = None,
+                     node: Optional[Node] = None) -> 'Dist':
         """連続密度から分布を作成"""
         dx = x[1] - x[0] if len(x) > 1 else 1.0
         density = {'x': x, 'f': f, 'dx': dx}
         return cls(density=density, sampler=sampler, sampler_index=sampler_index,
-                   dependencies=dependencies)
+                   dependencies=dependencies, node=node)
 
     @classmethod
     def deterministic(cls, value: float) -> 'Dist':
@@ -136,8 +151,9 @@ class Dist:
         def sampler(n, v=value):
             return np.full((n, 1), v)
 
+        node = Node(op='Const', inputs=[], dependencies=set())
         return cls.from_atoms([(value, 1.0)], sampler=sampler,
-                              sampler_index=0, dependencies=set())
+                              sampler_index=0, dependencies=set(), node=node)
     
     def get_support_interval(self) -> Optional[Interval]:
         """全体のサポート区間を取得"""

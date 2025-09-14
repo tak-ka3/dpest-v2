@@ -6,7 +6,7 @@
 
 import numpy as np
 from typing import Union, List
-from .core import Dist, Interval
+from .core import Dist, Interval, Node
 
 
 class Laplace:
@@ -52,6 +52,8 @@ class Laplace:
                 return np.random.laplace(mu, b, (n, 1))
 
             dist = Dist.from_density(x, f, sampler=sampler, sampler_index=0)
+            node = Node(op='Laplace', inputs=[], dependencies=set(dist.dependencies))
+            dist.node = node
             dist.support = [Interval(self.mu - support_range, self.mu + support_range)]
             return dist
         else:
@@ -61,6 +63,8 @@ class Laplace:
                     return np.random.laplace(mu, b, (n, 1))
 
                 dist = Dist.from_density(x, f, sampler=sampler, sampler_index=0)
+                node = Node(op='Laplace', inputs=[], dependencies=set(dist.dependencies))
+                dist.node = node
                 dist.support = [Interval(self.mu - support_range, self.mu + support_range)]
                 dists.append(dist)
             # 独立なラプラス分布のリストを返す
@@ -134,6 +138,8 @@ class Exponential:
                 return np.random.exponential(scale=b, size=(n, 1)) + mu
 
             dist = Dist.from_density(x, f, sampler=sampler, sampler_index=0)
+            node = Node(op='Exponential', inputs=[], dependencies=set(dist.dependencies))
+            dist.node = node
             dist.support = [Interval(self.mu, self.mu + support_range)]
             return dist
         else:
@@ -143,6 +149,8 @@ class Exponential:
                     return np.random.exponential(scale=b, size=(n, 1)) + mu
 
                 dist = Dist.from_density(x, f, sampler=sampler, sampler_index=0)
+                node = Node(op='Exponential', inputs=[], dependencies=set(dist.dependencies))
+                dist.node = node
                 dist.support = [Interval(self.mu, self.mu + support_range)]
                 dists.append(dist)
             return dists
