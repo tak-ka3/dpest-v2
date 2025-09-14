@@ -7,7 +7,7 @@ Argmax演算の実装
 import numpy as np
 from typing import List, Optional
 from scipy import integrate
-from ..core import Dist
+from ..core import Dist, Node
 
 
 class Argmax:
@@ -59,7 +59,9 @@ class Argmax:
             unique, counts = np.unique(indices, return_counts=True)
             total = len(indices)
             atoms = [(int(idx), cnt/total) for idx, cnt in zip(unique, counts)]
-            return Dist.from_atoms(atoms, dependencies=union_deps)
+            node = Node(op='Argmax', inputs=[getattr(d, 'node', None) for d in distributions],
+                        dependencies=union_deps)
+            return Dist.from_atoms(atoms, dependencies=union_deps, node=node)
 
         n = len(distributions)
         if n == 0:
@@ -77,7 +79,9 @@ class Argmax:
         if total_prob > 0:
             argmax_probs = [(idx, prob/total_prob) for idx, prob in argmax_probs]
 
-        return Dist.from_atoms(argmax_probs, dependencies=union_deps)
+        node = Node(op='Argmax', inputs=[getattr(d, 'node', None) for d in distributions],
+                    dependencies=union_deps)
+        return Dist.from_atoms(argmax_probs, dependencies=union_deps, node=node)
     
     @staticmethod
     def _compute_argmax_prob(distributions: List[Dist], target_idx: int) -> float:

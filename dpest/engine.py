@@ -4,7 +4,8 @@
 アルゴリズムをコンパイルして分布計算関数を生成します。
 """
 
-from typing import Callable, Any, List, Union
+from dataclasses import dataclass
+from typing import Callable, Any, List, Union, Optional
 from .core import Dist
 from .noise import Laplace, Exponential, create_laplace_noise, create_exponential_noise
 from .operations import (
@@ -18,58 +19,124 @@ from .operations import (
     min_distribution,
     Argmax,
     argmax_distribution,
+    PrefixSum,
+    prefix_sum_distributions,
+    Sampled,
+    sampled_distribution,
+    Compare,
+    Condition,
+    compare_geq,
+    condition_mixture,
+    TruncatedGeometric,
+    truncated_geometric_distribution,
 )
-
-
-class ComputationNode:
-    """計算グラフのノード"""
-    def __init__(self, operation: str, inputs: List['ComputationNode'] = None, params: dict = None):
-        self.operation = operation
-        self.inputs = inputs or []
-        self.params = params or {}
-        self.output = None
 
 
 class Engine:
     """差分プライバシーε推定エンジンのメインクラス"""
-    
+
     def __init__(self):
+        # 利用可能な操作のマッピング
         self.operations = {
-            'input': self._input_op,
-            'laplace': self._laplace_op,
-            'exponential': self._exponential_op,
-            'add': self._add_op,
-            'affine': self._affine_op,
-            'argmax': self._argmax_op,
-            'max': self._max_op,
-            'min': self._min_op,
+            'Laplace': Laplace,
+            'Exponential': Exponential,
+            'Add': Add,
+            'Affine': Affine,
+            'Argmax': Argmax,
+            'Max': Max,
+            'Min': Min,
+            'Compare': Compare,
+            'Condition': Condition,
+            'PrefixSum': PrefixSum,
+            'Sampled': Sampled,
+            'TruncatedGeometric': TruncatedGeometric,
         }
-    
+
+    # アルゴリズムの関数から計算グラフを作る
+    def _build_computation_graph(self, algo_func: Callable):
+        """与えられたアルゴリズム関数から計算グラフを生成する"""
+
+        if not callable(algo_func):
+            raise TypeError("Algorithm must be callable")
+
+        # 現状ではアルゴリズム関数そのものを計算グラフとして扱う
+        return algo_func
+
+    # 計算グラフの最適化（シンプルな恒等最適化）
+    def _optimize_graph(self, computation_graph: Callable):
+        """計算グラフの最適化。現状では恒等変換を行う。"""
+
+        if not callable(computation_graph):
+            raise TypeError("Computation graph must be callable")
+        return computation_graph
+
+    @dataclass
+    class ExecutionPlan:
+        """出力分布計算のための実行計画"""
+
+        mode: str
+        graph: Callable
+        options: Optional[dict] = None
+
+    def _analyze_node(self, node) -> bool:
+        """ノードがサンプリングを要するか解析"""
+        if node is None:
+            return False
+        for inp in getattr(node, 'inputs', []):
+            self._analyze_node(inp)
+        deps = [getattr(inp, 'dependencies', set()) for inp in getattr(node, 'inputs', [])]
+        # 子がサンプリング必要なら伝播
+        if any(getattr(inp, 'needs_sampling', False) for inp in getattr(node, 'inputs', [])):
+            node.needs_sampling = True
+            return True
+        # 依存関係の重なりをチェック
+        for i in range(len(deps)):
+            for j in range(i + 1, len(deps)):
+                if deps[i] & deps[j]:
+                    node.needs_sampling = True
+                    return True
+        node.needs_sampling = False
+        return False
+
+    def _plan_execution(self, optimized_graph: Callable, input_dist) -> "Engine.ExecutionPlan":
+        """計算グラフから出力分布の計算方法を決定する"""
+
+        result = optimized_graph(input_dist)
+        self._analyze_node(getattr(result, 'node', None))
+        mode = 'sampling' if getattr(result.node, 'needs_sampling', False) else 'analytic'
+
+        return self.ExecutionPlan(mode=mode, graph=lambda _: result)
+
+    # 最適化済み計算グラフと実行計画に基づいて出力分布を得る
+    def _execute_algorithm(self, plan: "Engine.ExecutionPlan", input_dist):
+        """実行計画に従ってアルゴリズムを実行し分布を得る"""
+
+        graph = plan.graph
+        if not callable(graph):
+            raise ValueError("Execution plan graph is not callable")
+
+        return graph(input_dist)
+
     def compile(self, algo_func: Callable) -> Callable:
-        """
-        アルゴリズム関数から最適な計算グラフを生成して分布計算関数を返す
-        
-        注意: この実装では簡略化のため、実際のASTパースは行わず、
-        直接的な関数実行で分布を計算します。
-        """
+        """アルゴリズム関数から最適な計算グラフを生成して分布計算関数を返す（コンパイル）"""
+
+        computation_graph = self._build_computation_graph(algo_func)
+        optimized_graph = self._optimize_graph(computation_graph)
+
         def distribution_func(input_data):
             """入力データから出力分布を計算"""
-            
+
             # 入力データから初期分布を作成
             input_dist = self._create_input_distribution(input_data)
-            
-            # アルゴリズムを実行（簡略化実装）
-            # 実際の実装では、algo_funcをパースして計算グラフを構築すべき
-            try:
-                output_dist = algo_func(input_dist)
-                return output_dist
-            except Exception as e:
-                # フォールバック: 直接実行が失敗した場合
-                print(f"Direct execution failed: {e}")
-                return self._fallback_execution(algo_func, input_data)
-        
+
+            # 実行計画の作成とアルゴリズム実行
+            plan = self._plan_execution(optimized_graph, input_dist)
+            output_dist = self._execute_algorithm(plan, input_dist)
+
+            return output_dist
+
         return distribution_func
-    
+
     def _create_input_distribution(self, input_data) -> Union[Dist, List[Dist]]:
         """入力データから初期分布を作成"""
         if isinstance(input_data, (list, tuple)):
@@ -87,83 +154,6 @@ class Engine:
             return input_data
         else:
             raise ValueError(f"Unsupported input data type: {type(input_data)}")
-    
-    def _fallback_execution(self, algo_func, input_data):
-        """フォールバックの直接実行"""
-        # 最も基本的な実行パス
-        input_dist = self._create_input_distribution(input_data)
-        return input_dist
-    
-    # 各操作の実装
-    def _input_op(self, node: ComputationNode) -> Any:
-        """入力操作"""
-        return node.params.get('data')
-    
-    def _laplace_op(self, node: ComputationNode) -> Union[Dist, List[Dist]]:
-        """ラプラス分布操作"""
-        b = node.params.get('b', 1.0)
-        size = node.params.get('size')
-        return create_laplace_noise(b=b, size=size)
-
-    def _exponential_op(self, node: ComputationNode) -> Union[Dist, List[Dist]]:
-        """指数分布操作"""
-        b = node.params.get('b', 1.0)
-        size = node.params.get('size')
-        return create_exponential_noise(b=b, size=size)
-    
-    def _add_op(self, node: ComputationNode) -> Union[Dist, List[Dist]]:
-        """加法操作"""
-        if len(node.inputs) != 2:
-            raise ValueError("Add operation requires exactly 2 inputs")
-        
-        x_dist = node.inputs[0].output
-        y_dist = node.inputs[1].output
-        
-        return add_distributions(x_dist, y_dist)
-    
-    def _affine_op(self, node: ComputationNode) -> Dist:
-        """アフィン変換操作"""
-        if len(node.inputs) != 1:
-            raise ValueError("Affine operation requires exactly 1 input")
-        
-        x_dist = node.inputs[0].output
-        a = node.params.get('a', 1.0)
-        b = node.params.get('b', 0.0)
-        
-        return affine_transform(x_dist, a, b)
-    
-    def _argmax_op(self, node: ComputationNode) -> Dist:
-        """Argmax操作"""
-        if len(node.inputs) != 1:
-            raise ValueError("Argmax operation requires exactly 1 input")
-        
-        distributions = node.inputs[0].output
-        if not isinstance(distributions, list):
-            raise ValueError("Argmax requires a list of distributions")
-        
-        return argmax_distribution(distributions)
-    
-    def _max_op(self, node: ComputationNode) -> Dist:
-        """Max操作"""
-        if len(node.inputs) != 1:
-            raise ValueError("Max operation requires exactly 1 input")
-        
-        distributions = node.inputs[0].output
-        if not isinstance(distributions, list):
-            raise ValueError("Max requires a list of distributions")
-        
-        return max_distribution(distributions)
-    
-    def _min_op(self, node: ComputationNode) -> Dist:
-        """Min操作"""
-        if len(node.inputs) != 1:
-            raise ValueError("Min operation requires exactly 1 input")
-        
-        distributions = node.inputs[0].output
-        if not isinstance(distributions, list):
-            raise ValueError("Min requires a list of distributions")
-        
-        return min_distribution(distributions)
 
 
 # グローバル関数として提供
