@@ -24,9 +24,21 @@ def epsilon_from_dist(P: Dist, Q: Dist) -> float:
                 continue
             q_prob = 0.0
             for q_val, q_p in Q.atoms:
-                if abs(p_val - q_val) < 1e-10:
-                    q_prob = q_p
-                    break
+                try:
+                    numeric = (
+                        isinstance(p_val, (int, float))
+                        and isinstance(q_val, (int, float))
+                    )
+                    if numeric and abs(p_val - q_val) < 1e-10:
+                        q_prob = q_p
+                        break
+                    if not numeric and p_val == q_val:
+                        q_prob = q_p
+                        break
+                except TypeError:
+                    if p_val == q_val:
+                        q_prob = q_p
+                        break
             if q_prob > 0:
                 ratio = max(p_prob / q_prob, q_prob / p_prob)
                 if ratio > max_ratio:
