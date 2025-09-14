@@ -26,12 +26,40 @@ class Argmax:
         Returns:
             argmaxの離散分布（各インデックスの確率）
         """
+        union_deps = set().union(*[getattr(d, 'dependencies', set()) for d in distributions])
+
+        if joint_samples is None:
+            # 依存関係チェック
+            dependent = False
+            for i in range(len(distributions)):
+                for j in range(i + 1, len(distributions)):
+                    if (getattr(distributions[i], 'dependencies', set()) &
+                            getattr(distributions[j], 'dependencies', set())) or \
+                       (getattr(distributions[i], 'sampler', None) is not None and
+                        distributions[i].sampler is distributions[j].sampler):
+                        dependent = True
+                        break
+                if dependent:
+                    break
+
+            if dependent:
+                samplers = [getattr(d, 'sampler', None) for d in distributions]
+                if any(s is None for s in samplers) or len({id(s) for s in samplers}) != 1:
+                    raise ValueError("Dependent inputs require joint samples or shared sampler")
+                base_sampler = samplers[0]
+                indices = [d.sampler_index or 0 for d in distributions]
+                samples = base_sampler(1000)
+                samples = np.asarray(samples)
+                if samples.ndim == 1:
+                    samples = samples.reshape(-1, 1)
+                joint_samples = np.column_stack([samples[:, idx] for idx in indices])
+
         if joint_samples is not None:
             indices = np.argmax(joint_samples, axis=1)
             unique, counts = np.unique(indices, return_counts=True)
             total = len(indices)
             atoms = [(int(idx), cnt/total) for idx, cnt in zip(unique, counts)]
-            return Dist.from_atoms(atoms)
+            return Dist.from_atoms(atoms, dependencies=union_deps)
 
         n = len(distributions)
         if n == 0:
@@ -49,7 +77,7 @@ class Argmax:
         if total_prob > 0:
             argmax_probs = [(idx, prob/total_prob) for idx, prob in argmax_probs]
 
-        return Dist.from_atoms(argmax_probs)
+        return Dist.from_atoms(argmax_probs, dependencies=union_deps)
     
     @staticmethod
     def _compute_argmax_prob(distributions: List[Dist], target_idx: int) -> float:

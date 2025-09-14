@@ -5,9 +5,19 @@
 """
 
 from dataclasses import dataclass
-from typing import List, Tuple, Optional, Dict, Any, Callable, Union
+from typing import List, Tuple, Optional, Dict, Any, Callable, Union, Set
 import numpy as np
 from collections import defaultdict
+from itertools import count
+
+
+# 依存関係を識別するためのユニークID生成器
+_dep_id_gen = count()
+
+
+def _new_dep_id() -> int:
+    """依存関係識別子を生成"""
+    return next(_dep_id_gen)
 
 
 @dataclass
@@ -48,7 +58,8 @@ class Dist:
                  support: Optional[List[Interval]] = None,
                  error_bounds: Optional[Dict[str, float]] = None,
                  sampler: Optional[Callable[[int], np.ndarray]] = None,
-                 sampler_index: Optional[int] = None):
+                 sampler_index: Optional[int] = None,
+                 dependencies: Optional[Set[int]] = None):
         self.atoms = atoms or []  # [(value, weight), ...]
         self.density = density or {}  # {'x': grid_x, 'f': grid_f, 'dx': dx}
         self.support = support or []
@@ -56,6 +67,15 @@ class Dist:
         # サンプリング関数（依存関係の判定に利用）
         self.sampler = sampler
         self.sampler_index = sampler_index
+
+        # 依存関係の情報
+        if dependencies is not None:
+            self.dependencies: Set[int] = set(dependencies)
+        elif sampler is not None:
+            # サンプラーを持つ場合は新しい乱数源として扱う
+            self.dependencies = {_new_dep_id()}
+        else:
+            self.dependencies = set()
 
         # 正規化チェック
         self._validate()
@@ -93,18 +113,22 @@ class Dist:
     @classmethod
     def from_atoms(cls, atoms: List[Tuple[float, float]],
                    sampler: Optional[Callable[[int], np.ndarray]] = None,
-                   sampler_index: Optional[int] = None) -> 'Dist':
+                   sampler_index: Optional[int] = None,
+                   dependencies: Optional[Set[int]] = None) -> 'Dist':
         """点質量のみから分布を作成"""
-        return cls(atoms=atoms, sampler=sampler, sampler_index=sampler_index)
+        return cls(atoms=atoms, sampler=sampler, sampler_index=sampler_index,
+                   dependencies=dependencies)
 
     @classmethod
     def from_density(cls, x: np.ndarray, f: np.ndarray,
                      sampler: Optional[Callable[[int], np.ndarray]] = None,
-                     sampler_index: Optional[int] = None) -> 'Dist':
+                     sampler_index: Optional[int] = None,
+                     dependencies: Optional[Set[int]] = None) -> 'Dist':
         """連続密度から分布を作成"""
         dx = x[1] - x[0] if len(x) > 1 else 1.0
         density = {'x': x, 'f': f, 'dx': dx}
-        return cls(density=density, sampler=sampler, sampler_index=sampler_index)
+        return cls(density=density, sampler=sampler, sampler_index=sampler_index,
+                   dependencies=dependencies)
 
     @classmethod
     def deterministic(cls, value: float) -> 'Dist':
@@ -112,7 +136,8 @@ class Dist:
         def sampler(n, v=value):
             return np.full((n, 1), v)
 
-        return cls.from_atoms([(value, 1.0)], sampler=sampler, sampler_index=0)
+        return cls.from_atoms([(value, 1.0)], sampler=sampler,
+                              sampler_index=0, dependencies=set())
     
     def get_support_interval(self) -> Optional[Interval]:
         """全体のサポート区間を取得"""
