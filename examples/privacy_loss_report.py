@@ -2,6 +2,7 @@ import os
 import sys
 import math
 import numpy as np
+import mmh3
 from typing import List, Tuple
 
 # Allow importing the dpest package when running this file directly
@@ -9,30 +10,20 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from dpest.core import Dist
 from dpest.engine import AlgorithmBuilder, vector_argmax, vector_max
-from dpest.operations import add_distributions, svt5_distribution
+from dpest.operations import add_distributions, compare_geq, Condition
 from dpest.noise import create_laplace_noise, create_exponential_noise
 from dpest.utils.input_patterns import generate_patterns
 
-from dpest.mechanisms.noisy_hist import NoisyHist1, NoisyHist2
-from dpest.mechanisms.report_noisy_max import (
-    ReportNoisyMax1, ReportNoisyMax3,
-)
 from dpest.mechanisms.sparse_vector_technique import (
     SparseVectorTechnique1, SparseVectorTechnique2, SparseVectorTechnique3,
     SparseVectorTechnique4, SparseVectorTechnique6, NumericalSVT,
 )
-from dpest.mechanisms.laplace import LaplaceMechanism
-from dpest.mechanisms.parallel import LaplaceParallel, SVT34Parallel
+from dpest.mechanisms.parallel import SVT34Parallel
 from dpest.mechanisms.prefix_sum import PrefixSum
 from dpest.mechanisms.geometric import TruncatedGeometricMechanism
-from dpest.operations.rappor_op import (
-    one_time_rappor_distribution,
-    rappor_distribution,
-)
 from dpest.utils.privacy import (
     epsilon_from_dist,
     epsilon_from_list,
-    epsilon_from_samples,
     epsilon_from_samples_matrix,
 )
 
@@ -91,17 +82,66 @@ def laplace_parallel_dist(a: np.ndarray, eps_each: float, n_parallel: int) -> Li
 
 def svt5_dist(a: np.ndarray, eps: float, t: float = 1.0) -> List[Dist]:
     """Distribution of Sparse Vector Technique 5 using analytic operations."""
-    return svt5_distribution(a, eps=eps, t=t)
+    x = np.atleast_1d(a)
+    eps1 = eps / 2.0
+    rho_dist = create_laplace_noise(b=1 / eps1)
+    thresh_dist = add_distributions(rho_dist, Dist.deterministic(t))
+    results: List[Dist] = []
+    for val in x:
+        val_dist = Dist.deterministic(float(val))
+        res_dist = compare_geq(val_dist, thresh_dist)
+        results.append(res_dist)
+    return results
 
 
-def one_time_rappor_dist(a: np.ndarray, eps: float) -> List[Dist]:
+def one_time_rappor_dist(
+    a: np.ndarray,
+    eps: float,
+    n_hashes: int = 4,
+    filter_size: int = 20,
+    f: float = 0.95,
+) -> List[Dist]:
     """Distribution of One-time RAPPOR using analytic operations."""
-    return one_time_rappor_distribution(int(a.item(0)))
+    val = int(a.item(0))
+    filter_bits = np.zeros(filter_size, dtype=int)
+    for i in range(n_hashes):
+        idx = mmh3.hash(str(val), seed=i) % filter_size
+        filter_bits[idx] = 1
+
+    cond_randomize = Dist.from_atoms([(1.0, f), (0.0, 1.0 - f)])
+    cond_flip = Dist.from_atoms([(1.0, 0.5), (0.0, 0.5)])
+    bit_one = Dist.deterministic(1.0)
+    bit_zero = Dist.deterministic(0.0)
+    random_bit = Condition.apply(cond_flip, bit_one, bit_zero)
+
+    dists: List[Dist] = []
+    for bit in filter_bits:
+        base = Dist.deterministic(float(bit))
+        perm = Condition.apply(cond_randomize, random_bit, base)
+        dists.append(perm)
+    return dists
 
 
-def rappor_dist(a: np.ndarray, eps: float) -> List[Dist]:
+def rappor_dist(
+    a: np.ndarray,
+    eps: float,
+    n_hashes: int = 4,
+    filter_size: int = 20,
+    f: float = 0.75,
+    p: float = 0.45,
+    q: float = 0.55,
+) -> List[Dist]:
     """Distribution of full RAPPOR using analytic operations."""
-    return rappor_distribution(int(a.item(0)))
+    perm_dists = one_time_rappor_dist(
+        a, eps, n_hashes=n_hashes, filter_size=filter_size, f=f
+    )
+    dist_if_one = Dist.from_atoms([(1.0, q), (0.0, 1.0 - q)])
+    dist_if_zero = Dist.from_atoms([(1.0, p), (0.0, 1.0 - p)])
+    dists: List[Dist] = []
+    for perm in perm_dists:
+        final = Condition.apply(perm, dist_if_one, dist_if_zero)
+        dists.append(final)
+    return dists
 
 # ---------------------------------------------------------------------------
 # Estimation driver

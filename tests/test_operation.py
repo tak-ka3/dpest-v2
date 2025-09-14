@@ -259,27 +259,6 @@ def test_sampled_mechanism_operation():
     print()
 
 
-def test_svt_conditional_operation():
-    """条件演算を用いたSparseVectorTechniqueの分布計算テスト"""
-    print("=== SparseVectorTechnique 条件演算テスト ===")
-
-    from dpest.operations import svt5_distribution
-    # 画像1のパターンを長さ10で生成
-    patterns = generate_patterns(10)
-
-    # 画像2の推奨値に基づき eps=0.1 を使用
-    for name, (a, a_prime) in patterns.items():
-        print(f"-- pattern: {name} --")
-        dists_a = svt5_distribution(a, eps=0.1, t=1.0)
-        dists_ap = svt5_distribution(a_prime, eps=0.1, t=1.0)
-        masses_a = [d.total_mass() for d in dists_a]
-        masses_ap = [d.total_mass() for d in dists_ap]
-        print(f"  a ={list(a)} masses={[f'{m:.3f}' for m in masses_a]}")
-        print(f"  a'={list(a_prime)} masses={[f'{m:.3f}' for m in masses_ap]}")
-        eps = [estimate_privacy_loss(p, q) for p, q in zip(dists_a, dists_ap)]
-        print(f"  推定ε={ [f'{e:.3f}' for e in eps] }")
-        print()
-
 
 def main():
     """メイン実行"""
@@ -295,7 +274,6 @@ def main():
         test_dependent_add_operation()
         test_noisy_argmax_vs_noisy_max()
         test_sampled_mechanism_operation()
-        test_svt_conditional_operation()
         
         print("=" * 50)
         print("✅ 全てのテストが正常に完了しました")
