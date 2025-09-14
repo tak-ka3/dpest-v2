@@ -14,10 +14,7 @@ from dpest.operations import add_distributions, compare_geq, Condition
 from dpest.noise import create_laplace_noise, create_exponential_noise
 from dpest.utils.input_patterns import generate_patterns
 
-from dpest.mechanisms.sparse_vector_technique import (
-    SparseVectorTechnique3,
-    SparseVectorTechnique4, SparseVectorTechnique6, NumericalSVT,
-)
+from dpest.mechanisms.sparse_vector_technique import NumericalSVT
 from dpest.mechanisms.parallel import SVT34Parallel
 from dpest.mechanisms.prefix_sum import PrefixSum
 from dpest.mechanisms.geometric import TruncatedGeometricMechanism
@@ -343,6 +340,106 @@ def svt2_joint_dist(
     return dist
 
 
+def svt3_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> List[Dist]:
+    """Distribution of Sparse Vector Technique 3 using analytic operations."""
+    x = np.atleast_1d(a)
+    eps1 = eps / 2.0
+    eps2 = eps - eps1
+    rho_dist = create_laplace_noise(b=1 / eps1)
+    thresh_dist = add_distributions(rho_dist, Dist.deterministic(t))
+    thresh_x = thresh_dist.density["x"]
+    thresh_f = thresh_dist.density["f"]
+    thresh_dx = thresh_dist.density["dx"]
+    thresh_cdf = np.cumsum(thresh_f) * thresh_dx
+
+    def F_thresh(y: np.ndarray) -> np.ndarray:
+        return np.interp(y, thresh_x, thresh_cdf, left=0.0, right=1.0)
+
+    noise_dists = create_laplace_noise(b=c / eps2, size=len(x))
+    count_probs = [1.0] + [0.0] * c
+    results: List[Dist] = []
+    for val, noise in zip(x, noise_dists):
+        non_abort_prob = sum(count_probs[:c])
+        p_abort = count_probs[c]
+        val_dist = add_distributions(Dist.deterministic(float(val)), noise)
+        y_grid = val_dist.density["x"]
+        f_grid = val_dist.density["f"]
+        dx = val_dist.density["dx"]
+        Fy = F_thresh(y_grid)
+        p_true = np.sum(f_grid * Fy) * dx
+        p_false = 1.0 - p_true
+
+        density = {"x": y_grid, "f": f_grid * Fy * non_abort_prob, "dx": dx}
+        atoms = []
+        if non_abort_prob * p_false > 0:
+            atoms.append((-1000.0, non_abort_prob * p_false))
+        if p_abort > 0:
+            atoms.append((-2000.0, p_abort))
+        res_dist = Dist(atoms=atoms, density=density)
+        res_dist.normalize()
+        results.append(res_dist)
+
+        new_counts = [0.0] * (c + 1)
+        for k in range(c):
+            prob_k = count_probs[k]
+            new_counts[k] += prob_k * p_false
+            new_counts[min(c, k + 1)] += prob_k * p_true
+        new_counts[c] += count_probs[c]
+        count_probs = new_counts
+
+    return results
+
+
+def svt4_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> List[Dist]:
+    """Distribution of Sparse Vector Technique 4 using analytic operations."""
+    x = np.atleast_1d(a)
+    eps1 = eps / 4.0
+    eps2 = eps - eps1
+    rho_dist = create_laplace_noise(b=1 / eps1)
+    thresh_dist = add_distributions(rho_dist, Dist.deterministic(t))
+    noise_dists = create_laplace_noise(b=1 / eps2, size=len(x))
+    count_probs = [1.0] + [0.0] * c
+    results: List[Dist] = []
+    for val, noise in zip(x, noise_dists):
+        p_abort = count_probs[c]
+        val_dist = add_distributions(Dist.deterministic(float(val)), noise)
+        cmp_dist = compare_geq(val_dist, thresh_dist)
+        p_true = next((w for v, w in cmp_dist.atoms if v == 1.0), 0.0)
+        p_false = next((w for v, w in cmp_dist.atoms if v == 0.0), 0.0)
+        non_abort_prob = sum(count_probs[:c])
+        atoms = [(1.0, non_abort_prob * p_true), (0.0, non_abort_prob * p_false)]
+        if p_abort > 0:
+            atoms.append((-1.0, p_abort))
+        res_dist = Dist.from_atoms(atoms)
+        res_dist.normalize()
+        results.append(res_dist)
+
+        new_counts = [0.0] * (c + 1)
+        for k in range(c):
+            prob_k = count_probs[k]
+            new_counts[k] += prob_k * p_false
+            new_counts[min(c, k + 1)] += prob_k * p_true
+        new_counts[c] += count_probs[c]
+        count_probs = new_counts
+    return results
+
+
+def svt6_dist(a: np.ndarray, eps: float, t: float = 1.0) -> List[Dist]:
+    """Distribution of Sparse Vector Technique 6 using analytic operations."""
+    x = np.atleast_1d(a)
+    eps1 = eps / 2.0
+    eps2 = eps - eps1
+    rho_dist = create_laplace_noise(b=1 / eps1)
+    thresh_dist = add_distributions(rho_dist, Dist.deterministic(t))
+    noise_dists = create_laplace_noise(b=1 / eps2, size=len(x))
+    results: List[Dist] = []
+    for val, noise in zip(x, noise_dists):
+        val_dist = add_distributions(Dist.deterministic(float(val)), noise)
+        res_dist = compare_geq(val_dist, thresh_dist)
+        results.append(res_dist)
+    return results
+
+
 def svt5_dist(a: np.ndarray, eps: float, t: float = 1.0) -> List[Dist]:
     """Distribution of Sparse Vector Technique 5 using analytic operations."""
     x = np.atleast_1d(a)
@@ -558,16 +655,16 @@ def main():
                                        joint_dist_func=svt2_joint_dist)))
     results.append(("SVT3", input_sizes["SVT3"],
                     estimate_algorithm("SVT3", svt_pairs_short,
-                                       mechanism=SparseVectorTechnique3(eps=0.1))))
+                                       dist_func=svt3_dist)))
     results.append(("SVT4", input_sizes["SVT4"],
                     estimate_algorithm("SVT4", svt_pairs_short,
-                                       mechanism=SparseVectorTechnique4(eps=0.1))))
+                                       dist_func=svt4_dist)))
     results.append(("SVT5", input_sizes["SVT5"],
                     estimate_algorithm("SVT5", svt_pairs_long,
                                        dist_func=svt5_dist)))
     results.append(("SVT6", input_sizes["SVT6"],
                     estimate_algorithm("SVT6", svt_pairs_long,
-                                       mechanism=SparseVectorTechnique6(eps=0.1))))
+                                       dist_func=svt6_dist)))
 
     results.append(("NumericalSVT", input_sizes["NumericalSVT"],
                     estimate_algorithm("NumericalSVT",
