@@ -1,5 +1,5 @@
 import numpy as np
-from examples.privacy_loss_report import epsilon_from_samples_matrix
+from dpest.utils.privacy import epsilon_from_samples_matrix
 
 
 def test_epsilon_from_samples_matrix_discrete():
