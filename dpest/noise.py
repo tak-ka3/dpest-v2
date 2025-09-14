@@ -82,10 +82,20 @@ class Laplace:
         return f"Laplace(b={self.b}, mu={self.mu}{size_str})"
 
 
-def create_laplace_noise(b: float, size: int = None) -> Union[Dist, List[Dist]]:
-    """便利関数：ラプラスノイズ分布を作成"""
+def create_laplace_noise(
+    b: float,
+    size: int = None,
+    *,
+    grid_size: int = 1000,
+    support_range: float = None,
+) -> Union[Dist, List[Dist]]:
+    """便利関数：ラプラスノイズ分布を作成
+
+    grid_size や support_range を指定することで、連続分布の離散化精度を
+    制御できるようにする。精度を高めたい場合は grid_size を大きく設定する。
+    """
     laplace = Laplace(b=b, size=size)
-    return laplace.to_dist()
+    return laplace.to_dist(grid_size=grid_size, support_range=support_range)
 
 
 class Exponential:
