@@ -3,7 +3,7 @@ import sys
 import math
 import numpy as np
 import mmh3
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 # Allow importing the dpest package when running this file directly
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -15,7 +15,7 @@ from dpest.noise import create_laplace_noise, create_exponential_noise
 from dpest.utils.input_patterns import generate_patterns
 
 from dpest.mechanisms.sparse_vector_technique import (
-    SparseVectorTechnique2, SparseVectorTechnique3,
+    SparseVectorTechnique3,
     SparseVectorTechnique4, SparseVectorTechnique6, NumericalSVT,
 )
 from dpest.mechanisms.parallel import SVT34Parallel
@@ -175,6 +175,149 @@ def svt1_joint_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> Di
         sequences = new_seq
 
     atoms = [(seq, p) for seq, p in sequences.items()]
+    dist = Dist.from_atoms(atoms)
+    dist.normalize()
+    return dist
+
+
+def svt2_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> List[Dist]:
+    """Return marginal output distributions of SVT2."""
+    x = np.atleast_1d(a)
+    eps1 = eps / 2.0
+    eps2 = eps - eps1
+    b1 = c / eps1
+    b2 = 2 * c / eps2
+
+    rho_dist = create_laplace_noise(b=b1)
+    base_thresh = add_distributions(rho_dist, Dist.deterministic(t))
+
+    def laplace_cdf(arr: np.ndarray, mu: float, b: float) -> np.ndarray:
+        return np.where(
+            arr < mu,
+            0.5 * np.exp((arr - mu) / b),
+            1 - 0.5 * np.exp(-(arr - mu) / b),
+        )
+
+    state_probs = [0.0] * (c + 1)
+    state_dists: List[Optional[Dist]] = [None] * c
+    state_probs[0] = 1.0
+    state_dists[0] = base_thresh
+
+    results: List[Dist] = []
+    for val in x:
+        p_abort = state_probs[c]
+        p1_total = 0.0
+        p0_total = 0.0
+
+        new_state_probs = [0.0] * (c + 1)
+        contribs: List[List[Tuple[float, Dist]]] = [[] for _ in range(c)]
+
+        for k in range(c):
+            prob = state_probs[k]
+            if prob == 0 or state_dists[k] is None:
+                continue
+            thresh_dist = state_dists[k]
+            x_grid = thresh_dist.density["x"]
+            f_grid = thresh_dist.density["f"]
+            F_y = laplace_cdf(x_grid, float(val), b2)
+            p_false = np.sum(f_grid * F_y) * thresh_dist.density["dx"]
+            p_true = 1.0 - p_false
+
+            p1_total += prob * p_true
+            p0_total += prob * p_false
+
+            if p_false > 0:
+                f_new = f_grid * F_y / p_false
+                cond_false = Dist.from_density(x_grid, f_new)
+                cond_false.normalize()
+                new_state_probs[k] += prob * p_false
+                contribs[k].append((prob * p_false, cond_false))
+            if p_true > 0:
+                if k + 1 < c:
+                    new_state_probs[k + 1] += prob * p_true
+                    contribs[k + 1].append((prob * p_true, base_thresh))
+                else:
+                    new_state_probs[c] += prob * p_true
+
+        new_state_probs[c] += p_abort
+
+        new_state_dists: List[Optional[Dist]] = [None] * c
+        for k in range(c):
+            if new_state_probs[k] == 0:
+                continue
+            if len(contribs[k]) == 1:
+                new_state_dists[k] = contribs[k][0][1]
+            else:
+                x_grid = contribs[k][0][1].density["x"]
+                dx = contribs[k][0][1].density["dx"]
+                f_mix = np.zeros_like(x_grid)
+                for weight, dist in contribs[k]:
+                    f_mix += (weight / new_state_probs[k]) * dist.density["f"]
+                new_state = Dist(density={"x": x_grid, "f": f_mix, "dx": dx})
+                new_state.normalize()
+                new_state_dists[k] = new_state
+
+        state_probs = new_state_probs
+        state_dists = new_state_dists
+
+        atoms = [(1.0, p1_total), (0.0, p0_total)]
+        if p_abort > 0:
+            atoms.append((-1.0, p_abort))
+        res_dist = Dist.from_atoms(atoms)
+        res_dist.normalize()
+        results.append(res_dist)
+
+    return results
+
+
+def svt2_joint_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> Dist:
+    """Return joint output distribution of SVT2."""
+    x = np.atleast_1d(a)
+    eps1 = eps / 2.0
+    eps2 = eps - eps1
+    b1 = c / eps1
+    b2 = 2 * c / eps2
+
+    rho_dist = create_laplace_noise(b=b1)
+    base_thresh = add_distributions(rho_dist, Dist.deterministic(t))
+
+    def laplace_cdf(arr: np.ndarray, mu: float, b: float) -> np.ndarray:
+        return np.where(
+            arr < mu,
+            0.5 * np.exp((arr - mu) / b),
+            1 - 0.5 * np.exp(-(arr - mu) / b),
+        )
+
+    sequences: Dict[Tuple[float, ...], Tuple[float, Dist, int]] = {
+        (): (1.0, base_thresh, 0)
+    }
+
+    for val in x:
+        new_sequences: Dict[Tuple[float, ...], Tuple[float, Dist, int]] = {}
+        for seq, (prob, thresh_dist, k) in sequences.items():
+            if k >= c:
+                new_seq = seq + (-1.0,)
+                new_sequences[new_seq] = (prob, thresh_dist, k)
+                continue
+
+            x_grid = thresh_dist.density["x"]
+            f_grid = thresh_dist.density["f"]
+            F_y = laplace_cdf(x_grid, float(val), b2)
+            p_false = np.sum(f_grid * F_y) * thresh_dist.density["dx"]
+            p_true = 1.0 - p_false
+
+            if p_false > 0:
+                f_new = f_grid * F_y / p_false
+                cond_false = Dist.from_density(x_grid, f_new)
+                cond_false.normalize()
+                new_seq = seq + (0.0,)
+                new_sequences[new_seq] = (prob * p_false, cond_false, k)
+            if p_true > 0:
+                new_seq = seq + (1.0,)
+                new_sequences[new_seq] = (prob * p_true, base_thresh, k + 1)
+        sequences = new_sequences
+
+    atoms = [(seq, prob) for seq, (prob, _, _) in sequences.items()]
     dist = Dist.from_atoms(atoms)
     dist.normalize()
     return dist
@@ -392,7 +535,7 @@ def main():
                                        joint_dist_func=svt1_joint_dist)))
     results.append(("SVT2", input_sizes["SVT2"],
                     estimate_algorithm("SVT2", svt_pairs_short,
-                                       mechanism=SparseVectorTechnique2(eps=0.1))))
+                                       joint_dist_func=svt2_joint_dist)))
     results.append(("SVT3", input_sizes["SVT3"],
                     estimate_algorithm("SVT3", svt_pairs_short,
                                        mechanism=SparseVectorTechnique3(eps=0.1))))

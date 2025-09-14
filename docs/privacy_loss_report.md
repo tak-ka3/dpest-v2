@@ -1,6 +1,6 @@
 # Privacy Loss Report
 
-SVT1 の ε は依存する出力ベクトルを `svt1_joint_dist` で列挙したジョイント分布から評価しており、各座標を独立と仮定する場合よりも小さくなる。
+SVT1 と SVT2 の ε は依存する出力ベクトルを `svt1_joint_dist` や `svt2_joint_dist` で列挙したジョイント分布から評価しており、各座標を独立と仮定する場合よりも小さくなる。
 
 | Algorithm | Input size | Estimated ε | Ideal ε |
 |-----------|------------|-------------|---------|
