@@ -180,15 +180,25 @@ def svt1_joint_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> Di
     return dist
 
 
-def svt2_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> List[Dist]:
-    """Return marginal output distributions of SVT2."""
+def svt2_dist(
+    a: np.ndarray,
+    eps: float,
+    c: int = 2,
+    t: float = 1.0,
+    grid_size: int = 1000,
+) -> List[Dist]:
+    """Return marginal output distributions of SVT2.
+
+    ``grid_size`` はしきい値分布の離散化精度を制御するパラメータで、
+    値を大きくすると理想的な分布との誤差を抑えられる（計算コストは増加する）。
+    """
     x = np.atleast_1d(a)
     eps1 = eps / 2.0
     eps2 = eps - eps1
     b1 = c / eps1
     b2 = 2 * c / eps2
 
-    rho_dist = create_laplace_noise(b=b1)
+    rho_dist = create_laplace_noise(b=b1, grid_size=grid_size)
     base_thresh = add_distributions(rho_dist, Dist.deterministic(t))
 
     def laplace_cdf(arr: np.ndarray, mu: float, b: float) -> np.ndarray:
@@ -270,15 +280,25 @@ def svt2_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> List[Dis
     return results
 
 
-def svt2_joint_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> Dist:
-    """Return joint output distribution of SVT2."""
+def svt2_joint_dist(
+    a: np.ndarray,
+    eps: float,
+    c: int = 2,
+    t: float = 1.0,
+    grid_size: int = 1000,
+) -> Dist:
+    """Return joint output distribution of SVT2.
+
+    ``grid_size`` はしきい値分布の離散化精度を制御する。より大きな値を
+    指定すると、出力分布の推定精度が向上する。
+    """
     x = np.atleast_1d(a)
     eps1 = eps / 2.0
     eps2 = eps - eps1
     b1 = c / eps1
     b2 = 2 * c / eps2
 
-    rho_dist = create_laplace_noise(b=b1)
+    rho_dist = create_laplace_noise(b=b1, grid_size=grid_size)
     base_thresh = add_distributions(rho_dist, Dist.deterministic(t))
 
     def laplace_cdf(arr: np.ndarray, mu: float, b: float) -> np.ndarray:
