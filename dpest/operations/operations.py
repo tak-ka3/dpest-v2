@@ -31,10 +31,19 @@ class Add:
         base_sampler = None
         x_idx = y_idx = None
 
-        # 入力分布が同一のサンプラーを共有している場合、依存とみなす
-        if joint_samples is None and getattr(x_dist, 'sampler', None) is not None \
+        # 依存関係のチェック
+        dependent = False
+        if getattr(x_dist, 'dependencies', set()) & getattr(y_dist, 'dependencies', set()):
+            dependent = True
+        if getattr(x_dist, 'sampler', None) is not None \
            and getattr(y_dist, 'sampler', None) is not None \
            and x_dist.sampler is y_dist.sampler:
+            dependent = True
+
+        if dependent and joint_samples is None:
+            if getattr(x_dist, 'sampler', None) is None or getattr(y_dist, 'sampler', None) is None \
+               or x_dist.sampler is not y_dist.sampler:
+                raise ValueError("Dependent inputs require joint samples or shared sampler")
             base_sampler = x_dist.sampler
             x_idx = x_dist.sampler_index or 0
             y_idx = y_dist.sampler_index or 0
@@ -50,7 +59,8 @@ class Add:
             hist, bin_edges = np.histogram(sums, bins=100, density=True)
             centers = (bin_edges[:-1] + bin_edges[1:]) / 2
             dx = bin_edges[1] - bin_edges[0]
-            result = Dist(density={'x': centers, 'f': hist, 'dx': dx})
+            result = Dist(density={'x': centers, 'f': hist, 'dx': dx},
+                          dependencies=x_dist.dependencies | y_dist.dependencies)
             result.normalize()
             # サンプラーが存在する場合は結果にも伝播
             if base_sampler is not None:
@@ -128,7 +138,9 @@ class Add:
         # 点質量をマージ
         result_atoms = merge_atoms(result_atoms)
         
-        result = Dist(atoms=result_atoms, density=result_density, support=result_support)
+        result = Dist(atoms=result_atoms, density=result_density,
+                      support=result_support,
+                      dependencies=x_dist.dependencies | y_dist.dependencies)
         result.normalize()
 
         # サンプリング関数の伝播
@@ -229,7 +241,8 @@ class Affine:
                     new_interval = Interval(a * interval.high + b, a * interval.low + b)
                 result_support.append(new_interval)
         
-        return Dist(atoms=result_atoms, density=result_density, support=result_support)
+        return Dist(atoms=result_atoms, density=result_density, support=result_support,
+                    dependencies=x_dist.dependencies)
 
 
 def add_distributions(x_dist: Dist, y_dist: Union[Dist, List[Dist]],
