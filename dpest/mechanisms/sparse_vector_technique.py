@@ -1,6 +1,8 @@
 import numpy as np
 from .abstract import Mechanism
-from ..operations import svt5_distribution
+from ..core import Dist
+from ..noise import create_laplace_noise
+from ..operations import add_distributions, compare_geq
 
 
 class SparseVectorTechnique1(Mechanism):
@@ -237,9 +239,15 @@ class SparseVectorTechnique5(Mechanism):
 
     def dist(self, a):
         """Analytically compute marginal output distributions for each query."""
-
-        # self.eps1 = eps / 2 during initialization, so reconstruct total eps
-        return svt5_distribution(a, eps=self.eps1 * 2.0, t=self.t)
+        x = np.atleast_1d(a)
+        rho_dist = create_laplace_noise(b=1 / self.eps1)
+        thresh_dist = add_distributions(rho_dist, Dist.deterministic(self.t))
+        results = []
+        for val in x:
+            val_dist = Dist.deterministic(float(val))
+            res_dist = compare_geq(val_dist, thresh_dist)
+            results.append(res_dist)
+        return results
 
 
 class SparseVectorTechnique6(Mechanism):
