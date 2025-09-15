@@ -5,7 +5,7 @@ import numpy as np
 import mmh3
 from typing import Dict, List, Tuple, Optional
 
-# Allow importing the dpest package when running this file directly
+# このファイルを直接実行する際に dpest パッケージを読み込めるようにする
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from dpest.core import Dist, Node
@@ -25,7 +25,7 @@ from dpest.utils.privacy import (
 )
 
 # ---------------------------------------------------------------------------
-# Analytic implementations using operations
+# 演算を用いた解析的実装
 # ---------------------------------------------------------------------------
 
 def noisy_hist1_dist(a: np.ndarray, eps: float) -> List[Dist]:
@@ -89,49 +89,47 @@ def laplace_parallel_dist(a: np.ndarray, eps_each: float, n_parallel: int) -> Li
 
 
 def svt1_joint_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> Dist:
-    """Return joint output distribution of SVT1 using basic operations."""
+    """基本的な演算の組み合わせで SVT1 の出力分布を求める。"""
 
     x = np.atleast_1d(a)
     eps1 = eps / 2.0
     eps2 = eps - eps1
     rho_dist = create_laplace_noise(b=1 / eps1)
-    # Shared noisy threshold ``t + rho``
+    # 共通のノイズ付きしきい値 ``t + rho``
     thresh_dist = add_distributions(rho_dist, Dist.deterministic(t))
-    # Independent noise for each query answer
+    # 各クエリの回答には独立なノイズを加える
     noise_dists = create_laplace_noise(b=2 * c / eps2, size=len(x))
 
     def prepend(value: float, dist: Dist) -> Dist:
-        """Helper to add a value to the head of each sequence atom."""
+        """各シーケンスの先頭に値を付与する補助関数。"""
         atoms = [((value,) + seq, w) for seq, w in dist.atoms]
-        # Propagate dependencies so the graph reflects the sequence
+        # 依存関係を伝搬させ、計算グラフにシーケンスが反映されるようにする
         deps = set(dist.dependencies)
         inputs = [dist.node] if getattr(dist, "node", None) else []
         node = Node(op="Prepend", inputs=inputs, dependencies=deps)
         return Dist.from_atoms(atoms, dependencies=deps, node=node)
 
     def build(idx: int, k: int) -> Dist:
-        """Recursively construct the joint distribution.
+        """再帰的に結合分布を構築する。
 
-        ``idx`` indexes the current query and ``k`` counts the number of TRUE
-        answers emitted so far.  When ``k`` reaches the cap ``c`` the remaining
-        outputs are forced to ABORT (-1).
+        ``idx`` は現在のクエリの位置、 ``k`` はこれまでに出力した TRUE の数。
+        ``k`` が上限 ``c`` に達した場合、残りの出力は ABORT (-1) に固定される。
         """
         if idx == len(x):
-            # Base case: no remaining queries.
+            # ベースケース: 残りのクエリがない
             return Dist.from_atoms([(tuple(), 1.0)])
         if k >= c:
-            # Abort: fill the rest with -1s deterministically.
+            # 打ち切り: 残りを -1 で埋める
             remaining = tuple([-1.0] * (len(x) - idx))
             return Dist.from_atoms([(remaining, 1.0)])
 
-        # Draw noisy value for this query and compare to threshold.
+        # このクエリにノイズを加えてしきい値と比較
         val_dist = add_distributions(Dist.deterministic(float(x[idx])), noise_dists[idx])
         cmp_dist = compare_geq(val_dist, thresh_dist)
-        # Recurse on TRUE/FALSE branches, prepending branch indicator.
+        # TRUE/FALSE の枝に再帰し、枝の指示値を先頭に付ける
         true_branch = prepend(1.0, build(idx + 1, k + 1))
         false_branch = prepend(0.0, build(idx + 1, k))
-        # ``Condition.apply`` mixes the two branches based on the comparison
-        # distribution ``cmp_dist``.
+        # ``cmp_dist`` に基づき ``Condition.apply`` が 2 つの枝を混合する
         return Condition.apply(cmp_dist, true_branch, false_branch)
 
     dist = build(0, 0)
