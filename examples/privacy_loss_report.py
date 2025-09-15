@@ -29,107 +29,63 @@ from dpest.utils.privacy import (
 # ---------------------------------------------------------------------------
 
 def noisy_hist1_dist(a: np.ndarray, eps: float) -> List[Dist]:
+    """各要素にラプラスノイズ (b=1/eps) を加えたヒストグラムを返す。"""
+    # 入力値を決定的な分布に変換
     x_dists = [Dist.deterministic(float(v)) for v in a]
-    noise_dists = create_laplace_noise(b=1/eps, size=len(a))
+    # 独立なラプラスノイズを生成
+    noise_dists = create_laplace_noise(b=1 / eps, size=len(a))
+    # ベクトルとして各要素にノイズを加算
     return AlgorithmBuilder.vector_add(x_dists, noise_dists)
 
 def noisy_hist2_dist(a: np.ndarray, eps: float) -> List[Dist]:
+    """ノイズスケール ``eps`` のラプラスノイズを各要素に加える。"""
     x_dists = [Dist.deterministic(float(v)) for v in a]
     noise_dists = create_laplace_noise(b=eps, size=len(a))
     return AlgorithmBuilder.vector_add(x_dists, noise_dists)
 
 def report_noisy_max1_dist(a: np.ndarray, eps: float) -> Dist:
+    """ラプラスノイズを加えた後の argmax の分布を計算する。"""
     x_dists = [Dist.deterministic(float(v)) for v in a]
-    noise_dists = create_laplace_noise(b=2/eps, size=len(a))
+    noise_dists = create_laplace_noise(b=2 / eps, size=len(a))
     z_dists = AlgorithmBuilder.vector_add(x_dists, noise_dists)
     return vector_argmax(z_dists)
 
 def report_noisy_max3_dist(a: np.ndarray, eps: float) -> Dist:
+    """ラプラスノイズ後の最大値そのものの分布を求める。"""
     x_dists = [Dist.deterministic(float(v)) for v in a]
-    noise_dists = create_laplace_noise(b=2/eps, size=len(a))
+    noise_dists = create_laplace_noise(b=2 / eps, size=len(a))
     z_dists = AlgorithmBuilder.vector_add(x_dists, noise_dists)
     return vector_max(z_dists)
 
 def report_noisy_max2_dist(a: np.ndarray, eps: float) -> Dist:
+    """指数ノイズを用いた argmax の分布。"""
     x_dists = [Dist.deterministic(float(v)) for v in a]
-    noise_dists = create_exponential_noise(b=2/eps, size=len(a))
+    noise_dists = create_exponential_noise(b=2 / eps, size=len(a))
     z_dists = AlgorithmBuilder.vector_add(x_dists, noise_dists)
     dist = vector_argmax(z_dists)
     dist.normalize()
     return dist
 
 def report_noisy_max4_dist(a: np.ndarray, eps: float) -> Dist:
+    """指数ノイズ後の最大値の分布。"""
     x_dists = [Dist.deterministic(float(v)) for v in a]
-    noise_dists = create_exponential_noise(b=2/eps, size=len(a))
+    noise_dists = create_exponential_noise(b=2 / eps, size=len(a))
     z_dists = AlgorithmBuilder.vector_add(x_dists, noise_dists)
     dist = vector_max(z_dists)
     dist.normalize()
     return dist
 
 def laplace_vec_dist(a: np.ndarray, eps: float) -> List[Dist]:
+    """入力ベクトルに要素ごとラプラス機構を適用する。"""
     x_dists = [Dist.deterministic(float(v)) for v in a]
-    noise_dists = create_laplace_noise(b=1/eps, size=len(a))
+    noise_dists = create_laplace_noise(b=1 / eps, size=len(a))
     return AlgorithmBuilder.vector_add(x_dists, noise_dists)
 
 def laplace_parallel_dist(a: np.ndarray, eps_each: float, n_parallel: int) -> List[Dist]:
+    """同じ入力に独立なラプラス機構を並列に適用する。"""
     x_dist = Dist.deterministic(float(a.item(0)))
-    noise_list = create_laplace_noise(b=1/eps_each, size=n_parallel)
+    noise_list = create_laplace_noise(b=1 / eps_each, size=n_parallel)
     return [add_distributions(x_dist, n) for n in noise_list]
-
-
-def svt1_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> List[Dist]:
-    """解析的手法でSVT1の出力分布を計算する関数"""
-    # 入力配列を1次元化する
-    x = np.atleast_1d(a)
-    # 全体のプライバシー予算εをしきい値とクエリ用に分割
-    eps1 = eps / 2.0  # しきい値計算に使うε1
-    eps2 = eps - eps1  # クエリ評価に使うε2
-    # しきい値用ノイズρ ~ Laplace(1/ε1)
-    rho_dist = create_laplace_noise(b=1 / eps1)
-    # しきい値tにρを加えた分布
-    thresh_dist = add_distributions(rho_dist, Dist.deterministic(t))
-    # 各クエリに加えるノイズ ~ Laplace(2c/ε2)
-    noise_dists = create_laplace_noise(b=2 * c / eps2, size=len(x))
-
-    # trueの出力回数の分布（k回trueを出した確率）を保持
-    count_probs = [1.0] + [0.0] * c
-    results: List[Dist] = []
-    # 各クエリを順に評価
-    for val, noise in zip(x, noise_dists):
-        # クエリ値にノイズを加えた分布
-        val_dist = add_distributions(Dist.deterministic(float(val)), noise)
-        # しきい値以上かどうかの比較結果の分布
-        cmp_dist = compare_geq(val_dist, thresh_dist)
-        # 比較が真(1)になる確率
-        p_true = next((w for v, w in cmp_dist.atoms if v == 1.0), 0.0)
-        # 比較が偽(0)になる確率
-        p_false = next((w for v, w in cmp_dist.atoms if v == 0.0), 0.0)
-        # 既にc回trueを出力してアボートしている確率
-        p_abort = count_probs[c]
-        # まだアボートしていない状態で1を出力する確率
-        p1 = sum(count_probs[:c]) * p_true
-        # まだアボートしていない状態で0を出力する確率
-        p0 = sum(count_probs[:c]) * p_false
-        atoms = [(1.0, p1), (0.0, p0)]
-        if p_abort > 0:
-            # アボート(-1)を明示的に出力する確率
-            atoms.append((-1.0, p_abort))
-        # 出力の確率分布を構成
-        res_dist = Dist.from_atoms(atoms)
-        res_dist.normalize()
-        results.append(res_dist)
-
-        # trueの出力回数の分布を更新
-        new_counts = [0.0] * (c + 1)
-        for k in range(c):
-            prob_k = count_probs[k]  # trueをk回出した状態の確率
-            new_counts[k] += prob_k * p_false  # falseなら回数は変化なし
-            new_counts[min(c, k + 1)] += prob_k * p_true  # trueなら回数+1（上限c）
-        # すでにアボートしている確率を保持
-        new_counts[c] += count_probs[c]
-        count_probs = new_counts
-
-    return results
 
 
 def svt1_joint_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> Dist:
@@ -139,6 +95,7 @@ def svt1_joint_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> Di
     after the mechanism aborts.  Treating the whole vector as one random
     variable captures the dependencies among coordinates.
     """
+    # しきい値と各クエリにノイズを加え、全出力シーケンスを列挙
     x = np.atleast_1d(a)
     eps1 = eps / 2.0
     eps2 = eps - eps1
@@ -177,106 +134,6 @@ def svt1_joint_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> Di
     return dist
 
 
-def svt2_dist(
-    a: np.ndarray,
-    eps: float,
-    c: int = 2,
-    t: float = 1.0,
-    grid_size: int = 1000,
-) -> List[Dist]:
-    """Return marginal output distributions of SVT2.
-
-    ``grid_size`` はしきい値分布の離散化精度を制御するパラメータで、
-    値を大きくすると理想的な分布との誤差を抑えられる（計算コストは増加する）。
-    """
-    x = np.atleast_1d(a)
-    eps1 = eps / 2.0
-    eps2 = eps - eps1
-    b1 = c / eps1
-    b2 = 2 * c / eps2
-
-    rho_dist = create_laplace_noise(b=b1, grid_size=grid_size)
-    base_thresh = add_distributions(rho_dist, Dist.deterministic(t))
-
-    def laplace_cdf(arr: np.ndarray, mu: float, b: float) -> np.ndarray:
-        return np.where(
-            arr < mu,
-            0.5 * np.exp((arr - mu) / b),
-            1 - 0.5 * np.exp(-(arr - mu) / b),
-        )
-
-    state_probs = [0.0] * (c + 1)
-    state_dists: List[Optional[Dist]] = [None] * c
-    state_probs[0] = 1.0
-    state_dists[0] = base_thresh
-
-    results: List[Dist] = []
-    for val in x:
-        p_abort = state_probs[c]
-        p1_total = 0.0
-        p0_total = 0.0
-
-        new_state_probs = [0.0] * (c + 1)
-        contribs: List[List[Tuple[float, Dist]]] = [[] for _ in range(c)]
-
-        for k in range(c):
-            prob = state_probs[k]
-            if prob == 0 or state_dists[k] is None:
-                continue
-            thresh_dist = state_dists[k]
-            x_grid = thresh_dist.density["x"]
-            f_grid = thresh_dist.density["f"]
-            F_y = laplace_cdf(x_grid, float(val), b2)
-            p_false = np.sum(f_grid * F_y) * thresh_dist.density["dx"]
-            p_true = 1.0 - p_false
-
-            p1_total += prob * p_true
-            p0_total += prob * p_false
-
-            if p_false > 0:
-                f_new = f_grid * F_y / p_false
-                cond_false = Dist.from_density(x_grid, f_new)
-                cond_false.normalize()
-                new_state_probs[k] += prob * p_false
-                contribs[k].append((prob * p_false, cond_false))
-            if p_true > 0:
-                if k + 1 < c:
-                    new_state_probs[k + 1] += prob * p_true
-                    contribs[k + 1].append((prob * p_true, base_thresh))
-                else:
-                    new_state_probs[c] += prob * p_true
-
-        new_state_probs[c] += p_abort
-
-        new_state_dists: List[Optional[Dist]] = [None] * c
-        for k in range(c):
-            if new_state_probs[k] == 0:
-                continue
-            if len(contribs[k]) == 1:
-                new_state_dists[k] = contribs[k][0][1]
-            else:
-                x_grid = contribs[k][0][1].density["x"]
-                dx = contribs[k][0][1].density["dx"]
-                f_mix = np.zeros_like(x_grid)
-                for weight, dist in contribs[k]:
-                    f_mix += (weight / new_state_probs[k]) * dist.density["f"]
-                new_state = Dist(density={"x": x_grid, "f": f_mix, "dx": dx})
-                new_state.normalize()
-                new_state_dists[k] = new_state
-
-        state_probs = new_state_probs
-        state_dists = new_state_dists
-
-        atoms = [(1.0, p1_total), (0.0, p0_total)]
-        if p_abort > 0:
-            atoms.append((-1.0, p_abort))
-        res_dist = Dist.from_atoms(atoms)
-        res_dist.normalize()
-        results.append(res_dist)
-
-    return results
-
-
 def svt2_joint_dist(
     a: np.ndarray,
     eps: float,
@@ -289,6 +146,7 @@ def svt2_joint_dist(
     ``grid_size`` はしきい値分布の離散化精度を制御する。より大きな値を
     指定すると、出力分布の推定精度が向上する。
     """
+    # しきい値分布を状態として保持しながら各クエリを順に処理
     x = np.atleast_1d(a)
     eps1 = eps / 2.0
     eps2 = eps - eps1
@@ -340,56 +198,6 @@ def svt2_joint_dist(
     return dist
 
 
-def svt3_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> List[Dist]:
-    """Distribution of Sparse Vector Technique 3 using analytic operations."""
-    x = np.atleast_1d(a)
-    eps1 = eps / 2.0
-    eps2 = eps - eps1
-    rho_dist = create_laplace_noise(b=1 / eps1)
-    thresh_dist = add_distributions(rho_dist, Dist.deterministic(t))
-    thresh_x = thresh_dist.density["x"]
-    thresh_f = thresh_dist.density["f"]
-    thresh_dx = thresh_dist.density["dx"]
-    thresh_cdf = np.cumsum(thresh_f) * thresh_dx
-
-    def F_thresh(y: np.ndarray) -> np.ndarray:
-        return np.interp(y, thresh_x, thresh_cdf, left=0.0, right=1.0)
-
-    noise_dists = create_laplace_noise(b=c / eps2, size=len(x))
-    count_probs = [1.0] + [0.0] * c
-    results: List[Dist] = []
-    for val, noise in zip(x, noise_dists):
-        non_abort_prob = sum(count_probs[:c])
-        p_abort = count_probs[c]
-        val_dist = add_distributions(Dist.deterministic(float(val)), noise)
-        y_grid = val_dist.density["x"]
-        f_grid = val_dist.density["f"]
-        dx = val_dist.density["dx"]
-        Fy = F_thresh(y_grid)
-        p_true = np.sum(f_grid * Fy) * dx
-        p_false = 1.0 - p_true
-
-        density = {"x": y_grid, "f": f_grid * Fy * non_abort_prob, "dx": dx}
-        atoms = []
-        if non_abort_prob * p_false > 0:
-            atoms.append((-1000.0, non_abort_prob * p_false))
-        if p_abort > 0:
-            atoms.append((-2000.0, p_abort))
-        res_dist = Dist(atoms=atoms, density=density)
-        res_dist.normalize()
-        results.append(res_dist)
-
-        new_counts = [0.0] * (c + 1)
-        for k in range(c):
-            prob_k = count_probs[k]
-            new_counts[k] += prob_k * p_false
-            new_counts[min(c, k + 1)] += prob_k * p_true
-        new_counts[c] += count_probs[c]
-        count_probs = new_counts
-
-    return results
-
-
 def svt3_joint_dist(
     a: np.ndarray,
     eps: float,
@@ -405,6 +213,7 @@ def svt3_joint_dist(
     which is sufficient for privacy loss estimation based on these
     categories.
     """
+    # 共有しきい値を積分しつつ真偽列を列挙する
     x = np.atleast_1d(a)
     eps1 = eps / 2.0
     eps2 = eps - eps1
@@ -460,40 +269,6 @@ def svt3_joint_dist(
     return dist
 
 
-def svt4_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> List[Dist]:
-    """Distribution of Sparse Vector Technique 4 using analytic operations."""
-    x = np.atleast_1d(a)
-    eps1 = eps / 4.0
-    eps2 = eps - eps1
-    rho_dist = create_laplace_noise(b=1 / eps1)
-    thresh_dist = add_distributions(rho_dist, Dist.deterministic(t))
-    noise_dists = create_laplace_noise(b=1 / eps2, size=len(x))
-    count_probs = [1.0] + [0.0] * c
-    results: List[Dist] = []
-    for val, noise in zip(x, noise_dists):
-        p_abort = count_probs[c]
-        val_dist = add_distributions(Dist.deterministic(float(val)), noise)
-        cmp_dist = compare_geq(val_dist, thresh_dist)
-        p_true = next((w for v, w in cmp_dist.atoms if v == 1.0), 0.0)
-        p_false = next((w for v, w in cmp_dist.atoms if v == 0.0), 0.0)
-        non_abort_prob = sum(count_probs[:c])
-        atoms = [(1.0, non_abort_prob * p_true), (0.0, non_abort_prob * p_false)]
-        if p_abort > 0:
-            atoms.append((-1.0, p_abort))
-        res_dist = Dist.from_atoms(atoms)
-        res_dist.normalize()
-        results.append(res_dist)
-
-        new_counts = [0.0] * (c + 1)
-        for k in range(c):
-            prob_k = count_probs[k]
-            new_counts[k] += prob_k * p_false
-            new_counts[min(c, k + 1)] += prob_k * p_true
-        new_counts[c] += count_probs[c]
-        count_probs = new_counts
-    return results
-
-
 def svt4_joint_dist(
     a: np.ndarray,
     eps: float,
@@ -502,6 +277,7 @@ def svt4_joint_dist(
     grid_size: int = 1000,
 ) -> Dist:
     """Return joint output distribution of SVT4."""
+    # しきい値を共有しながら各クエリの真偽列を列挙
     x = np.atleast_1d(a)
     eps1 = eps / 4.0
     eps2 = eps - eps1
@@ -556,22 +332,6 @@ def svt4_joint_dist(
     return dist
 
 
-def svt6_dist(a: np.ndarray, eps: float, t: float = 1.0) -> List[Dist]:
-    """Distribution of Sparse Vector Technique 6 using analytic operations."""
-    x = np.atleast_1d(a)
-    eps1 = eps / 2.0
-    eps2 = eps - eps1
-    rho_dist = create_laplace_noise(b=1 / eps1)
-    thresh_dist = add_distributions(rho_dist, Dist.deterministic(t))
-    noise_dists = create_laplace_noise(b=1 / eps2, size=len(x))
-    results: List[Dist] = []
-    for val, noise in zip(x, noise_dists):
-        val_dist = add_distributions(Dist.deterministic(float(val)), noise)
-        res_dist = compare_geq(val_dist, thresh_dist)
-        results.append(res_dist)
-    return results
-
-
 def svt6_joint_dist(
     a: np.ndarray,
     eps: float,
@@ -579,6 +339,7 @@ def svt6_joint_dist(
     grid_size: int = 1000,
 ) -> Dist:
     """Return joint output distribution of SVT6."""
+    # しきい値と各クエリに独立なノイズを加え、全比較結果の列挙で分布を構築
     x = np.atleast_1d(a)
     eps1 = eps / 2.0
     eps2 = eps - eps1
@@ -627,20 +388,6 @@ def svt6_joint_dist(
     return dist
 
 
-def svt5_dist(a: np.ndarray, eps: float, t: float = 1.0) -> List[Dist]:
-    """Distribution of Sparse Vector Technique 5 using analytic operations."""
-    x = np.atleast_1d(a)
-    eps1 = eps / 2.0
-    rho_dist = create_laplace_noise(b=1 / eps1)
-    thresh_dist = add_distributions(rho_dist, Dist.deterministic(t))
-    results: List[Dist] = []
-    for val in x:
-        val_dist = Dist.deterministic(float(val))
-        res_dist = compare_geq(val_dist, thresh_dist)
-        results.append(res_dist)
-    return results
-
-
 def svt5_joint_dist(
     a: np.ndarray,
     eps: float,
@@ -648,6 +395,7 @@ def svt5_joint_dist(
     grid_size: int = 1000,
 ) -> Dist:
     """Return joint output distribution of SVT5."""
+    # しきい値にノイズを加え、各クエリとの比較結果を列挙する
     x = np.atleast_1d(a)
     eps1 = eps / 2.0
     rho_dist = create_laplace_noise(b=1 / eps1, grid_size=grid_size)
@@ -677,18 +425,21 @@ def one_time_rappor_dist(
     f: float = 0.95,
 ) -> List[Dist]:
     """Distribution of One-time RAPPOR using analytic operations."""
+    # ハッシュにより値をビットベクトルへエンコード
     val = int(a.item(0))
     filter_bits = np.zeros(filter_size, dtype=int)
     for i in range(n_hashes):
         idx = mmh3.hash(str(val), seed=i) % filter_size
         filter_bits[idx] = 1
 
+    # f の確率でランダマイズ、1/0 それぞれの分布を定義
     cond_randomize = Dist.from_atoms([(1.0, f), (0.0, 1.0 - f)])
     cond_flip = Dist.from_atoms([(1.0, 0.5), (0.0, 0.5)])
     bit_one = Dist.deterministic(1.0)
     bit_zero = Dist.deterministic(0.0)
     random_bit = Condition.apply(cond_flip, bit_one, bit_zero)
 
+    # 各ビットにランダマイズを適用
     dists: List[Dist] = []
     for bit in filter_bits:
         base = Dist.deterministic(float(bit))
@@ -707,9 +458,11 @@ def rappor_dist(
     q: float = 0.55,
 ) -> List[Dist]:
     """Distribution of full RAPPOR using analytic operations."""
+    # まず一回ランダマイズ版を計算
     perm_dists = one_time_rappor_dist(
         a, eps, n_hashes=n_hashes, filter_size=filter_size, f=f
     )
+    # 本番のランダマイズを適用 (q:1, p:0 に flip)
     dist_if_one = Dist.from_atoms([(1.0, q), (0.0, 1.0 - q)])
     dist_if_zero = Dist.from_atoms([(1.0, p), (0.0, 1.0 - p)])
     dists: List[Dist] = []

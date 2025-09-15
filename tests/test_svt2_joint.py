@@ -6,18 +6,16 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from examples.privacy_loss_report import (
     estimate_algorithm,
-    svt2_dist,
     svt2_joint_dist,
     generate_change_one_pairs,
 )
+from tests.utils import naive_epsilon
 
 
 def test_svt2_joint_less_than_sum():
     pairs = generate_change_one_pairs(3)
     eps = 0.1
-    naive = estimate_algorithm(
-        "SVT2", pairs, dist_func=svt2_dist, eps=eps, extra=(2, 1.0)
-    )
+    naive = naive_epsilon(pairs, eps, svt2_joint_dist, extra=(2, 1.0))
     joint = estimate_algorithm(
         "SVT2", pairs, joint_dist_func=svt2_joint_dist, eps=eps, extra=(2, 1.0)
     )
