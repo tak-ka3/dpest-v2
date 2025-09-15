@@ -268,59 +268,52 @@ def svt4_joint_dist(
     eps: float,
     c: int = 2,
     t: float = 1.0,
-    grid_size: int = 1000,
 ) -> Dist:
-    """Return joint output distribution of SVT4."""
-    # しきい値を共有しながら各クエリの真偽列を列挙
+    """Return joint output distribution of SVT4 using basic operations."""
+
     x = np.atleast_1d(a)
     eps1 = eps / 4.0
     eps2 = eps - eps1
 
-    rho_dist = create_laplace_noise(b=1 / eps1, grid_size=grid_size)
-    noise_dists = create_laplace_noise(b=1 / eps2, size=len(x), grid_size=grid_size)
+    # Shared noisy threshold ρ ~ Lap(1/ε₁)
+    rho_dist = create_laplace_noise(b=1 / eps1)
+    thresh_dist = add_distributions(Dist.deterministic(t), rho_dist)
 
-    cdf_funcs = []
-    for val, noise in zip(x, noise_dists):
-        val_dist = add_distributions(Dist.deterministic(float(val)), noise)
-        y = val_dist.density["x"]
-        f = val_dist.density["f"]
-        dx = val_dist.density["dx"]
-        cdf = np.cumsum(f) * dx
+    # Noise for each query ν_i ~ Lap(1/ε₂)
+    nu_dists = create_laplace_noise(b=1 / eps2, size=len(x))
 
-        def F(y_val, grid=y, cdf_vals=cdf):
-            return np.interp(y_val, grid, cdf_vals, left=0.0, right=1.0)
+    sequences: Dict[Tuple[float, ...], Tuple[float, int]] = {(): (1.0, 0)}
 
-        cdf_funcs.append(F)
+    for val, nu in zip(x, nu_dists):
+        val_dist = add_distributions(Dist.deterministic(float(val)), nu)
+        cmp_dist = compare_geq(val_dist, thresh_dist)
+        p_true = next((w for v, w in cmp_dist.atoms if v == 1.0), 0.0)
+        p_false = next((w for v, w in cmp_dist.atoms if v == 0.0), 0.0)
 
-    rho_x = rho_dist.density["x"]
-    rho_f = rho_dist.density["f"]
-    rho_dx = rho_dist.density["dx"]
-
-    sequence_probs: Dict[Tuple[float, ...], float] = {}
-    for r, weight in zip(rho_x, rho_f):
-        thresh = t + r
-        p_list = [1.0 - F(thresh) for F in cdf_funcs]
-        seqs: Dict[Tuple[float, ...], float] = {(): 1.0}
-        for p_true in p_list:
-            p_false = 1.0 - p_true
-            new_seqs: Dict[Tuple[float, ...], float] = {}
-            for seq, prob in seqs.items():
-                if seq and seq[-1] == -1.0:
-                    new_seqs[seq + (-1.0,)] = new_seqs.get(seq + (-1.0,), 0.0) + prob
-                    continue
-                if seq.count(1.0) >= c:
-                    new_seqs[seq + (-1.0,)] = new_seqs.get(seq + (-1.0,), 0.0) + prob
-                    continue
+        new_sequences: Dict[Tuple[float, ...], Tuple[float, int]] = {}
+        for seq, (prob, k) in sequences.items():
+            if k >= c:
+                new_seq = seq + (-1.0,)
+                new_sequences[new_seq] = (
+                    new_sequences.get(new_seq, (0.0, k))[0] + prob,
+                    k,
+                )
+                continue
+            if p_true > 0:
                 seq_true = seq + (1.0,)
+                new_sequences[seq_true] = (
+                    new_sequences.get(seq_true, (0.0, k + 1))[0] + prob * p_true,
+                    k + 1,
+                )
+            if p_false > 0:
                 seq_false = seq + (0.0,)
-                new_seqs[seq_true] = new_seqs.get(seq_true, 0.0) + prob * p_true
-                new_seqs[seq_false] = new_seqs.get(seq_false, 0.0) + prob * p_false
-            seqs = new_seqs
-        final_weight = weight * rho_dx
-        for seq, prob in seqs.items():
-            sequence_probs[seq] = sequence_probs.get(seq, 0.0) + prob * final_weight
+                new_sequences[seq_false] = (
+                    new_sequences.get(seq_false, (0.0, k))[0] + prob * p_false,
+                    k,
+                )
+        sequences = new_sequences
 
-    atoms = [(seq, p) for seq, p in sequence_probs.items()]
+    atoms = [(seq, prob) for seq, (prob, _) in sequences.items()]
     dist = Dist.from_atoms(atoms)
     dist.normalize()
     return dist
