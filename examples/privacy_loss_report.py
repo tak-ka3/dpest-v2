@@ -139,62 +139,61 @@ def svt1_joint_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> Di
     return dist
 
 
-def svt2_joint_dist(
-    a: np.ndarray,
-    eps: float,
-    c: int = 2,
-    t: float = 1.0,
-    grid_size: int = 1000,
-) -> Dist:
-    """Return joint output distribution of SVT2.
+def svt2_joint_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> Dist:
+    """Return joint output distribution of SVT2 using basic operations."""
 
-    ``grid_size`` はしきい値分布の離散化精度を制御する。より大きな値を
-    指定すると、出力分布の推定精度が向上する。
-    """
-    # しきい値分布を状態として保持しながら各クエリを順に処理
     x = np.atleast_1d(a)
     eps1 = eps / 2.0
     eps2 = eps - eps1
-    b1 = c / eps1
-    b2 = 2 * c / eps2
 
-    rho_dist = create_laplace_noise(b=b1, grid_size=grid_size)
-    base_thresh = add_distributions(rho_dist, Dist.deterministic(t))
+    # Initial threshold noise ρ₀ ~ Lap(c/ε₁)
+    rho_init = create_laplace_noise(b=c / eps1)
+    thresh_init = add_distributions(Dist.deterministic(t), rho_init)
 
-    def laplace_cdf(arr: np.ndarray, mu: float, b: float) -> np.ndarray:
-        return np.where(
-            arr < mu,
-            0.5 * np.exp((arr - mu) / b),
-            1 - 0.5 * np.exp(-(arr - mu) / b),
-        )
+    # Threshold noise after TRUE outputs ρ' ~ Lap(c/ε₂)
+    rho_reset = create_laplace_noise(b=c / eps2)
+    thresh_reset = add_distributions(Dist.deterministic(t), rho_reset)
 
-    sequences: Dict[Tuple[float, ...], Tuple[float, Dist, int]] = {
-        (): (1.0, base_thresh, 0)
+    # Noise for each query ν_i ~ Lap(2c/ε₂)
+    nu_dists = create_laplace_noise(b=2 * c / eps2, size=len(x))
+
+    sequences: Dict[Tuple[float, ...], Tuple[float, int, Dist]] = {
+        (): (1.0, 0, thresh_init)
     }
 
-    for val in x:
-        new_sequences: Dict[Tuple[float, ...], Tuple[float, Dist, int]] = {}
-        for seq, (prob, thresh_dist, k) in sequences.items():
+    for val, nu in zip(x, nu_dists):
+        new_sequences: Dict[Tuple[float, ...], Tuple[float, int, Dist]] = {}
+        for seq, (prob, k, thresh_dist) in sequences.items():
             if k >= c:
                 new_seq = seq + (-1.0,)
-                new_sequences[new_seq] = (prob, thresh_dist, k)
+                new_sequences[new_seq] = (
+                    new_sequences.get(new_seq, (0.0, k, thresh_dist))[0] + prob,
+                    k,
+                    thresh_dist,
+                )
                 continue
 
-            x_grid = thresh_dist.density["x"]
-            f_grid = thresh_dist.density["f"]
-            F_y = laplace_cdf(x_grid, float(val), b2)
-            p_false = np.sum(f_grid * F_y) * thresh_dist.density["dx"]
-            p_true = 1.0 - p_false
+            val_dist = add_distributions(Dist.deterministic(float(val)), nu)
+            cmp_dist = compare_geq(val_dist, thresh_dist)
+            p_true = next((w for v, w in cmp_dist.atoms if v == 1.0), 0.0)
+            p_false = next((w for v, w in cmp_dist.atoms if v == 0.0), 0.0)
 
-            if p_false > 0:
-                f_new = f_grid * F_y / p_false
-                cond_false = Dist.from_density(x_grid, f_new)
-                cond_false.normalize()
-                new_seq = seq + (0.0,)
-                new_sequences[new_seq] = (prob * p_false, cond_false, k)
             if p_true > 0:
-                new_seq = seq + (1.0,)
-                new_sequences[new_seq] = (prob * p_true, base_thresh, k + 1)
+                seq_true = seq + (1.0,)
+                new_sequences[seq_true] = (
+                    new_sequences.get(seq_true, (0.0, k + 1, thresh_reset))[0]
+                    + prob * p_true,
+                    k + 1,
+                    thresh_reset,
+                )
+            if p_false > 0:
+                seq_false = seq + (0.0,)
+                new_sequences[seq_false] = (
+                    new_sequences.get(seq_false, (0.0, k, thresh_dist))[0]
+                    + prob * p_false,
+                    k,
+                    thresh_dist,
+                )
         sequences = new_sequences
 
     atoms = [(seq, prob) for seq, (prob, _, _) in sequences.items()]
