@@ -5,10 +5,10 @@ import numpy as np
 import mmh3
 from typing import Dict, List, Tuple, Optional
 
-# Allow importing the dpest package when running this file directly
+# このファイルを直接実行する際に dpest パッケージを読み込めるようにする
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from dpest.core import Dist
+from dpest.core import Dist, Node
 from dpest.engine import AlgorithmBuilder, vector_argmax, vector_max
 from dpest.operations import add_distributions, compare_geq, Condition
 from dpest.noise import create_laplace_noise, create_exponential_noise
@@ -25,7 +25,7 @@ from dpest.utils.privacy import (
 )
 
 # ---------------------------------------------------------------------------
-# Analytic implementations using operations
+# 演算を用いた解析的実装
 # ---------------------------------------------------------------------------
 
 def noisy_hist1_dist(a: np.ndarray, eps: float) -> List[Dist]:
@@ -89,47 +89,50 @@ def laplace_parallel_dist(a: np.ndarray, eps_each: float, n_parallel: int) -> Li
 
 
 def svt1_joint_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> Dist:
-    """Return joint output distribution of SVT1.
+    """基本的な演算の組み合わせで SVT1 の出力分布を求める。"""
 
-    This enumerates the probability of every output vector, inserting ``-1``
-    after the mechanism aborts.  Treating the whole vector as one random
-    variable captures the dependencies among coordinates.
-    """
-    # しきい値と各クエリにノイズを加え、全出力シーケンスを列挙
     x = np.atleast_1d(a)
     eps1 = eps / 2.0
     eps2 = eps - eps1
     rho_dist = create_laplace_noise(b=1 / eps1)
+    # 共通のノイズ付きしきい値 ``t + rho``
     thresh_dist = add_distributions(rho_dist, Dist.deterministic(t))
+    # 各クエリの回答には独立なノイズを加える
     noise_dists = create_laplace_noise(b=2 * c / eps2, size=len(x))
 
-    p_list: List[Tuple[float, float]] = []
-    for val, noise in zip(x, noise_dists):
-        val_dist = add_distributions(Dist.deterministic(float(val)), noise)
+    def prepend(value: float, dist: Dist) -> Dist:
+        """各シーケンスの先頭に値を付与する補助関数。"""
+        atoms = [((value,) + seq, w) for seq, w in dist.atoms]
+        # 依存関係を伝搬させ、計算グラフにシーケンスが反映されるようにする
+        deps = set(dist.dependencies)
+        inputs = [dist.node] if getattr(dist, "node", None) else []
+        node = Node(op="Prepend", inputs=inputs, dependencies=deps)
+        return Dist.from_atoms(atoms, dependencies=deps, node=node)
+
+    def build(idx: int, k: int) -> Dist:
+        """再帰的に結合分布を構築する。
+
+        ``idx`` は現在のクエリの位置、 ``k`` はこれまでに出力した TRUE の数。
+        ``k`` が上限 ``c`` に達した場合、残りの出力は ABORT (-1) に固定される。
+        """
+        if idx == len(x):
+            # ベースケース: 残りのクエリがない
+            return Dist.from_atoms([(tuple(), 1.0)])
+        if k >= c:
+            # 打ち切り: 残りを -1 で埋める
+            remaining = tuple([-1.0] * (len(x) - idx))
+            return Dist.from_atoms([(remaining, 1.0)])
+
+        # このクエリにノイズを加えてしきい値と比較
+        val_dist = add_distributions(Dist.deterministic(float(x[idx])), noise_dists[idx])
         cmp_dist = compare_geq(val_dist, thresh_dist)
-        p_true = next((w for v, w in cmp_dist.atoms if v == 1.0), 0.0)
-        p_false = next((w for v, w in cmp_dist.atoms if v == 0.0), 0.0)
-        p_list.append((p_true, p_false))
+        # TRUE/FALSE の枝に再帰し、枝の指示値を先頭に付ける
+        true_branch = prepend(1.0, build(idx + 1, k + 1))
+        false_branch = prepend(0.0, build(idx + 1, k))
+        # ``cmp_dist`` に基づき ``Condition.apply`` が 2 つの枝を混合する
+        return Condition.apply(cmp_dist, true_branch, false_branch)
 
-    sequences: Dict[Tuple[float, ...], float] = {(): 1.0}
-    for p_true, p_false in p_list:
-        new_seq: Dict[Tuple[float, ...], float] = {}
-        for seq, prob in sequences.items():
-            if seq and seq[-1] == -1.0:
-                new_seq[seq + (-1.0,)] = new_seq.get(seq + (-1.0,), 0.0) + prob
-                continue
-            k = seq.count(1.0)
-            if k >= c:
-                new_seq[seq + (-1.0,)] = new_seq.get(seq + (-1.0,), 0.0) + prob
-                continue
-            seq_true = seq + (1.0,)
-            seq_false = seq + (0.0,)
-            new_seq[seq_true] = new_seq.get(seq_true, 0.0) + prob * p_true
-            new_seq[seq_false] = new_seq.get(seq_false, 0.0) + prob * p_false
-        sequences = new_seq
-
-    atoms = [(seq, p) for seq, p in sequences.items()]
-    dist = Dist.from_atoms(atoms)
+    dist = build(0, 0)
     dist.normalize()
     return dist
 
