@@ -9,7 +9,7 @@ from typing import Union
 import numpy as np
 from scipy import interpolate
 
-from ..core import Dist, merge_atoms
+from ..core import Dist, merge_atoms, Node
 from .operations import Add, Affine
 
 
@@ -51,7 +51,15 @@ class Compare:
                 prob += np.trapz(f_grid[mask], x_grid[mask])
 
         prob = min(max(prob, 0.0), 1.0)
-        return Dist.from_atoms([(1.0, prob), (0.0, 1.0 - prob)])
+        deps = set(x_dist.dependencies)
+        inputs = [getattr(x_dist, 'node', None)]
+        if isinstance(y, Dist):
+            deps |= y.dependencies
+            inputs.append(getattr(y, 'node', None))
+        inputs = [n for n in inputs if n is not None]
+        node = Node(op='CompareGEQ', inputs=inputs, dependencies=set(deps))
+        return Dist.from_atoms([(1.0, prob), (0.0, 1.0 - prob)],
+                              dependencies=set(deps), node=node)
 
 
 class Condition:
@@ -108,7 +116,16 @@ class Condition:
                 result_density = {'x': x_false, 'f': p_false * f_false, 'dx': dx_false}
 
         result_atoms = merge_atoms(result_atoms)
-        result = Dist(atoms=result_atoms, density=result_density if result_density else None)
+        deps = cond_dist.dependencies | true_dist.dependencies | false_dist.dependencies
+        inputs = [getattr(cond_dist, 'node', None),
+                  getattr(true_dist, 'node', None),
+                  getattr(false_dist, 'node', None)]
+        inputs = [n for n in inputs if n is not None]
+        node = Node(op='Condition', inputs=inputs, dependencies=set(deps))
+        result = Dist(atoms=result_atoms,
+                      density=result_density if result_density else None,
+                      dependencies=set(deps),
+                      node=node)
         result.normalize()
         return result
 
