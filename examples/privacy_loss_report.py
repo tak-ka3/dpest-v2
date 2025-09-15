@@ -95,12 +95,12 @@ def svt1_joint_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> Di
     eps1 = eps / 2.0
     eps2 = eps - eps1
 
-    # しきい値に加えるノイズ ρ ~ Lap(c/ε1)
-    rho_dist = create_laplace_noise(b=c / eps1)
+    # しきい値に加えるノイズ ρ ~ Lap(1/ε1)
+    rho_dist = create_laplace_noise(b=1 / eps1)
     thresh_dist = add_distributions(Dist.deterministic(t), rho_dist)
 
-    # 各クエリに加えるノイズ ν_i ~ Lap(2c/ε1)
-    nu_dists = create_laplace_noise(b=2 * c / eps1, size=len(x))
+    # 各クエリに加えるノイズ ν_i ~ Lap(2c/ε2)
+    nu_dists = create_laplace_noise(b=2 * c / eps2, size=len(x))
 
     sequences: Dict[Tuple[float, ...], Tuple[float, int]] = {(): (1.0, 0)}
 
