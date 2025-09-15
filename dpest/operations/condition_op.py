@@ -27,8 +27,9 @@ class Compare:
         Returns:
             Dist over {0,1} representing the event X >= Y.
         """
-        # If y is a distribution, reduce to comparison with zero by taking
-        # the difference X - Y.
+        # If ``y`` is itself random, we compare ``X - Y`` with zero.
+        # This formulation keeps the computation graph intact because the
+        # subtraction is expressed via primitive Add/Affine operations.
         if isinstance(y, Dist):
             diff = Add.apply(x_dist, Affine.apply(y, -1.0, 0.0))
             return Compare.geq(diff, 0.0)
@@ -42,7 +43,8 @@ class Compare:
                 if val >= threshold:
                     prob += weight
 
-        # Continuous part
+        # Continuous part: integrate density over the region x >= threshold.
+        # ``trapz`` is used for numerical stability on arbitrary grids.
         if x_dist.density and 'x' in x_dist.density:
             x_grid = x_dist.density['x']
             f_grid = x_dist.density['f']
@@ -51,6 +53,8 @@ class Compare:
                 prob += np.trapz(f_grid[mask], x_grid[mask])
 
         prob = min(max(prob, 0.0), 1.0)
+        # Record dependencies so downstream analyses know this indicator
+        # depends on the inputs ``x_dist`` (and possibly ``y``).
         deps = set(x_dist.dependencies)
         inputs = [getattr(x_dist, 'node', None)]
         if isinstance(y, Dist):
@@ -93,6 +97,9 @@ class Condition:
 
         result_density = {}
         if true_dist.density or false_dist.density:
+            # Extract grids/densities from branches. Missing pieces yield
+            # empty arrays so the subsequent logic can treat all cases
+            # uniformly.
             x_true = true_dist.density.get('x', np.array([])) if true_dist.density else np.array([])
             f_true = true_dist.density.get('f', np.array([])) if true_dist.density else np.array([])
             dx_true = true_dist.density.get('dx') if true_dist.density else None
@@ -101,6 +108,8 @@ class Condition:
             dx_false = false_dist.density.get('dx') if false_dist.density else None
 
             if x_true.size > 0 and x_false.size > 0:
+                # Both branches have densities.  Mix them by resampling onto
+                # a common grid so that probabilities align before weighting.
                 dx = min(dx_true, dx_false)
                 min_x = min(x_true[0], x_false[0])
                 max_x = max(x_true[-1], x_false[-1])
@@ -111,11 +120,16 @@ class Condition:
                 f_mix = p_true * f_true_interp(x_grid) + p_false * f_false_interp(x_grid)
                 result_density = {'x': x_grid, 'f': f_mix, 'dx': dx}
             elif x_true.size > 0:
+                # Only the true branch has density; scale directly.
                 result_density = {'x': x_true, 'f': p_true * f_true, 'dx': dx_true}
             elif x_false.size > 0:
+                # Only the false branch has density; scale directly.
                 result_density = {'x': x_false, 'f': p_false * f_false, 'dx': dx_false}
 
         result_atoms = merge_atoms(result_atoms)
+        # The resulting node depends on all inputs: condition, true branch and
+        # false branch.  We keep the graph links so higher-level analyses can
+        # trace how values were combined.
         deps = cond_dist.dependencies | true_dist.dependencies | false_dist.dependencies
         inputs = [getattr(cond_dist, 'node', None),
                   getattr(true_dist, 'node', None),

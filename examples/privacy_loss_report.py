@@ -95,27 +95,43 @@ def svt1_joint_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> Di
     eps1 = eps / 2.0
     eps2 = eps - eps1
     rho_dist = create_laplace_noise(b=1 / eps1)
+    # Shared noisy threshold ``t + rho``
     thresh_dist = add_distributions(rho_dist, Dist.deterministic(t))
+    # Independent noise for each query answer
     noise_dists = create_laplace_noise(b=2 * c / eps2, size=len(x))
 
     def prepend(value: float, dist: Dist) -> Dist:
+        """Helper to add a value to the head of each sequence atom."""
         atoms = [((value,) + seq, w) for seq, w in dist.atoms]
+        # Propagate dependencies so the graph reflects the sequence
         deps = set(dist.dependencies)
         inputs = [dist.node] if getattr(dist, "node", None) else []
         node = Node(op="Prepend", inputs=inputs, dependencies=deps)
         return Dist.from_atoms(atoms, dependencies=deps, node=node)
 
     def build(idx: int, k: int) -> Dist:
+        """Recursively construct the joint distribution.
+
+        ``idx`` indexes the current query and ``k`` counts the number of TRUE
+        answers emitted so far.  When ``k`` reaches the cap ``c`` the remaining
+        outputs are forced to ABORT (-1).
+        """
         if idx == len(x):
+            # Base case: no remaining queries.
             return Dist.from_atoms([(tuple(), 1.0)])
         if k >= c:
+            # Abort: fill the rest with -1s deterministically.
             remaining = tuple([-1.0] * (len(x) - idx))
             return Dist.from_atoms([(remaining, 1.0)])
 
+        # Draw noisy value for this query and compare to threshold.
         val_dist = add_distributions(Dist.deterministic(float(x[idx])), noise_dists[idx])
         cmp_dist = compare_geq(val_dist, thresh_dist)
+        # Recurse on TRUE/FALSE branches, prepending branch indicator.
         true_branch = prepend(1.0, build(idx + 1, k + 1))
         false_branch = prepend(0.0, build(idx + 1, k))
+        # ``Condition.apply`` mixes the two branches based on the comparison
+        # distribution ``cmp_dist``.
         return Condition.apply(cmp_dist, true_branch, false_branch)
 
     dist = build(0, 0)
