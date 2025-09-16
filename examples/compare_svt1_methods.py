@@ -20,6 +20,7 @@ repository root.
 
 from __future__ import annotations
 
+import csv
 import math
 import time
 from pathlib import Path
@@ -99,6 +100,68 @@ def privacy_loss_from_maps(
         return 0.0
 
     return float(math.log(max(ratios)))
+
+
+def _format_cell(value: object) -> str:
+    """Format numeric values for tabular display."""
+
+    if isinstance(value, float):
+        if math.isnan(value) or math.isinf(value):
+            return str(value)
+        return f"{value:.6g}"
+    return str(value)
+
+
+def _print_table(title: str, headers: Sequence[str], rows: Sequence[Sequence[object]]) -> None:
+    """Pretty-print a table to stdout."""
+
+    if title:
+        print(title)
+
+    col_widths = []
+    num_columns = len(headers)
+    for idx in range(num_columns):
+        width = len(headers[idx])
+        if rows:
+            width = max(width, *(len(_format_cell(row[idx])) for row in rows))
+        col_widths.append(width)
+
+    header_line = " | ".join(
+        headers[idx].ljust(col_widths[idx]) for idx in range(num_columns)
+    )
+    separator = "-+-".join("-" * col_width for col_width in col_widths)
+
+    print(header_line)
+    print(separator)
+    for row in rows:
+        print(
+            " | ".join(
+                _format_cell(row[idx]).ljust(col_widths[idx]) for idx in range(num_columns)
+            )
+        )
+    print()
+
+
+def write_table(
+    *,
+    title: str,
+    headers: Sequence[str],
+    columns: Sequence[Sequence[object]],
+    output_path: Path,
+) -> None:
+    """Write tabular results to CSV and print them."""
+
+    rows = list(zip(*columns))
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with output_path.open("w", newline="") as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(headers)
+        writer.writerows(rows)
+
+    _print_table(title, headers, rows)
+    print(f"Saved table to {output_path}")
+    print()
 
 
 def run_analytic(
@@ -387,6 +450,8 @@ def main() -> None:
 
     output_dir = Path(__file__).resolve().parent / "figures"
     output_dir.mkdir(exist_ok=True)
+    tables_dir = output_dir / "tables"
+    tables_dir.mkdir(exist_ok=True)
 
     eps = 1.0
     t = 0.0
@@ -403,6 +468,24 @@ def main() -> None:
         grid_size=grid_size_default,
         grid_size_ref=grid_size_reference,
         n_samples=n_samples_default,
+    )
+    write_table(
+        title="SVT1 runtime and privacy loss vs. number of queries",
+        headers=[
+            "Number of queries",
+            "Analytic runtime [s]",
+            "Sampling runtime [s]",
+            "Analytic privacy loss ε",
+            "Sampling privacy loss ε",
+        ],
+        columns=[
+            results_m["m_values"],
+            results_m["analytic_times"],
+            results_m["sampling_times"],
+            results_m["analytic_privacy_losses"],
+            results_m["sampling_privacy_losses"],
+        ],
+        output_path=tables_dir / "svt1_compare_vs_m.csv",
     )
     plot_runtime_accuracy(
         results_m["m_values"],
@@ -425,6 +508,24 @@ def main() -> None:
         grid_size_ref=grid_size_reference,
         n_samples=n_samples_default,
     )
+    write_table(
+        title="SVT1 runtime and privacy loss vs. TRUE budget",
+        headers=[
+            "TRUE budget c",
+            "Analytic runtime [s]",
+            "Sampling runtime [s]",
+            "Analytic privacy loss ε",
+            "Sampling privacy loss ε",
+        ],
+        columns=[
+            results_c["c_values"],
+            results_c["analytic_times"],
+            results_c["sampling_times"],
+            results_c["analytic_privacy_losses"],
+            results_c["sampling_privacy_losses"],
+        ],
+        output_path=tables_dir / "svt1_compare_vs_c.csv",
+    )
     plot_runtime_accuracy(
         results_c["c_values"],
         results_c["analytic_times"],
@@ -444,6 +545,20 @@ def main() -> None:
         c=2,
         t=t,
     )
+    write_table(
+        title="Analytic method: effect of Laplace grid size",
+        headers=[
+            "Laplace grid size",
+            "Runtime [s]",
+            f"Privacy loss ε vs grid={results_grid['reference_size']}",
+        ],
+        columns=[
+            results_grid["grid_sizes"],
+            results_grid["times"],
+            results_grid["privacy_losses"],
+        ],
+        output_path=tables_dir / "svt1_analytic_grid_size.csv",
+    )
     plot_grid_size(
         results_grid["grid_sizes"],
         results_grid["times"],
@@ -460,6 +575,25 @@ def main() -> None:
         t=t,
         grid_size=grid_size_reference,
     )
+    write_table(
+        title="Sampling method: effect of sample count",
+        headers=[
+            "Number of Monte Carlo samples",
+            "Runtime [s]",
+            "Privacy loss ε",
+        ],
+        columns=[
+            results_sampling["sample_counts"],
+            results_sampling["times"],
+            results_sampling["privacy_losses"],
+        ],
+        output_path=tables_dir / "svt1_sampling_counts.csv",
+    )
+    print(
+        "Analytic reference runtime for sampling comparison:",
+        _format_cell(results_sampling["analytic_time"]),
+    )
+    print()
     plot_sampling_counts(
         results_sampling["sample_counts"],
         results_sampling["times"],
@@ -469,6 +603,7 @@ def main() -> None:
     )
 
     print("Figures written to", output_dir)
+    print("Tables written to", tables_dir)
 
 
 if __name__ == "__main__":
