@@ -41,30 +41,12 @@ if str(ROOT) not in sys.path:
 
 from examples.privacy_loss_report import svt1_joint_dist
 from dpest.core import Dist
+from dpest.utils.privacy import epsilon_from_dist
 from dpest.mechanisms.sparse_vector_technique import SparseVectorTechnique1
 
 
-def dist_to_prob_map(dist: Dist) -> Dict[Tuple[float, ...], float]:
-    """Convert a distribution of tuples into a probability map."""
-
-    probs: Dict[Tuple[float, ...], float] = {}
-    for value, weight in dist.atoms:
-        if isinstance(value, np.ndarray):
-            key = tuple(float(x) for x in value.tolist())
-        elif isinstance(value, (list, tuple)):
-            key = tuple(float(x) for x in value)
-        else:
-            key = (float(value),)
-        probs[key] = probs.get(key, 0.0) + float(weight)
-
-    total = sum(probs.values())
-    if total > 0:
-        probs = {key: weight / total for key, weight in probs.items()}
-    return probs
-
-
-def sample_to_prob_map(samples: np.ndarray) -> Dict[Tuple[float, ...], float]:
-    """Turn SVT output samples into an empirical distribution."""
+def samples_to_dist(samples: np.ndarray) -> Dist:
+    """Convert Monte Carlo SVT outputs into an empirical ``Dist``."""
 
     counts: Dict[Tuple[float, ...], int] = {}
     for row in samples:
@@ -72,34 +54,8 @@ def sample_to_prob_map(samples: np.ndarray) -> Dict[Tuple[float, ...], float]:
         counts[key] = counts.get(key, 0) + 1
 
     total = samples.shape[0]
-    return {key: count / total for key, count in counts.items()}
-
-
-def privacy_loss_from_maps(
-    p: Dict[Tuple[float, ...], float],
-    q: Dict[Tuple[float, ...], float],
-    *,
-    min_prob: float = 1e-12,
-) -> float:
-    """Compute the privacy loss ``ε`` between two discrete probability maps."""
-
-    # ``min_prob`` provides a small smoothing factor so that missing outcomes in
-    # empirical approximations (e.g., Monte Carlo samples) do not yield infinite
-    # privacy loss even though the analytic reference assigns them positive
-    # probability.
-
-    support = set(p) | set(q)
-    ratios = []
-    for key in support:
-        p_prob = max(p.get(key, 0.0), min_prob)
-        q_prob = max(q.get(key, 0.0), min_prob)
-        ratios.append(p_prob / q_prob)
-        ratios.append(q_prob / p_prob)
-
-    if not ratios:
-        return 0.0
-
-    return float(math.log(max(ratios)))
+    atoms = [(key, count / total) for key, count in counts.items()]
+    return Dist.from_atoms(atoms)
 
 
 def _format_cell(value: object) -> str:
@@ -185,14 +141,14 @@ def run_sampling(
     c: int,
     t: float,
     n_samples: int,
-) -> Tuple[Dict[Tuple[float, ...], float], float]:
-    """Run the Monte Carlo SVT implementation and return an empirical pmf."""
+) -> Tuple[Dist, float]:
+    """Run the Monte Carlo SVT implementation and return an empirical dist."""
 
     mechanism = SparseVectorTechnique1(eps=eps, c=c, t=t)
     start = time.perf_counter()
     samples = mechanism.m(a, n_samples=n_samples)
     elapsed = time.perf_counter() - start
-    return sample_to_prob_map(samples), elapsed
+    return samples_to_dist(samples), elapsed
 
 
 def experiment_vary_m(
@@ -215,14 +171,14 @@ def experiment_vary_m(
     for m in m_values:
         a = np.linspace(-0.5, 0.5, m)
         dist_ref, _ = run_analytic(a, eps=eps, c=c, t=t, grid_size=grid_size_ref)
-        ref_map = dist_to_prob_map(dist_ref)
 
         dist, analytic_time = run_analytic(a, eps=eps, c=c, t=t, grid_size=grid_size)
-        analytic_map = dist_to_prob_map(dist)
-        analytic_privacy = privacy_loss_from_maps(ref_map, analytic_map)
+        analytic_privacy = epsilon_from_dist(dist, dist_ref)
 
-        sample_map, sample_time = run_sampling(a, eps=eps, c=c, t=t, n_samples=n_samples)
-        sampling_privacy = privacy_loss_from_maps(ref_map, sample_map)
+        sample_dist, sample_time = run_sampling(
+            a, eps=eps, c=c, t=t, n_samples=n_samples
+        )
+        sampling_privacy = epsilon_from_dist(sample_dist, dist_ref)
 
         analytic_times.append(analytic_time)
         analytic_privacy_losses.append(analytic_privacy)
@@ -259,14 +215,14 @@ def experiment_vary_c(
 
     for c in c_values:
         dist_ref, _ = run_analytic(a, eps=eps, c=c, t=t, grid_size=grid_size_ref)
-        ref_map = dist_to_prob_map(dist_ref)
 
         dist, analytic_time = run_analytic(a, eps=eps, c=c, t=t, grid_size=grid_size)
-        analytic_map = dist_to_prob_map(dist)
-        analytic_privacy = privacy_loss_from_maps(ref_map, analytic_map)
+        analytic_privacy = epsilon_from_dist(dist, dist_ref)
 
-        sample_map, sample_time = run_sampling(a, eps=eps, c=c, t=t, n_samples=n_samples)
-        sampling_privacy = privacy_loss_from_maps(ref_map, sample_map)
+        sample_dist, sample_time = run_sampling(
+            a, eps=eps, c=c, t=t, n_samples=n_samples
+        )
+        sampling_privacy = epsilon_from_dist(sample_dist, dist_ref)
 
         analytic_times.append(analytic_time)
         analytic_privacy_losses.append(analytic_privacy)
@@ -295,14 +251,12 @@ def experiment_grid_size(
     a = np.linspace(-0.5, 0.5, m)
     reference_size = max(grid_sizes)
     dist_ref, _ = run_analytic(a, eps=eps, c=c, t=t, grid_size=reference_size)
-    ref_map = dist_to_prob_map(dist_ref)
 
     times = []
     privacy_losses = []
     for grid_size in grid_sizes:
         dist, elapsed = run_analytic(a, eps=eps, c=c, t=t, grid_size=grid_size)
-        analytic_map = dist_to_prob_map(dist)
-        privacy_loss = privacy_loss_from_maps(ref_map, analytic_map)
+        privacy_loss = epsilon_from_dist(dist, dist_ref)
         times.append(elapsed)
         privacy_losses.append(privacy_loss)
 
@@ -327,13 +281,14 @@ def experiment_sampling_counts(
 
     a = np.linspace(-0.5, 0.5, m)
     dist_ref, analytic_time = run_analytic(a, eps=eps, c=c, t=t, grid_size=grid_size)
-    ref_map = dist_to_prob_map(dist_ref)
 
     times = []
     privacy_losses = []
     for n_samples in sample_counts:
-        sample_map, elapsed = run_sampling(a, eps=eps, c=c, t=t, n_samples=n_samples)
-        privacy_loss = privacy_loss_from_maps(ref_map, sample_map)
+        sample_dist, elapsed = run_sampling(
+            a, eps=eps, c=c, t=t, n_samples=n_samples
+        )
+        privacy_loss = epsilon_from_dist(sample_dist, dist_ref)
         times.append(elapsed)
         privacy_losses.append(privacy_loss)
 
