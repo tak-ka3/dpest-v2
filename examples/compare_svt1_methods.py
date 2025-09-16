@@ -3,7 +3,9 @@
 This script evaluates the analytic joint distribution constructor
 ``svt1_joint_dist`` and the sampling-based ``SparseVectorTechnique1``
 implementation.  It sweeps several parameters and visualises how runtime and
-privacy loss change for both approaches.
+privacy loss change for both approaches.  Input vectors are drawn from the
+standard adjacency patterns returned by :func:`generate_patterns`, mirroring
+the privacy evaluation inputs used by ``privacy_loss_report.py``.
 
 The following experiments are performed:
 
@@ -43,6 +45,11 @@ from examples.privacy_loss_report import svt1_joint_dist
 from dpest.core import Dist
 from dpest.utils.privacy import epsilon_from_dist
 from dpest.mechanisms.sparse_vector_technique import SparseVectorTechnique1
+from dpest.utils.input_patterns import generate_patterns
+
+
+DEFAULT_PATTERN_NAME = "one_above"
+DEFAULT_PATTERN_SIDE = 0  # 0 -> D, 1 -> D'
 
 
 def samples_to_dist(samples: np.ndarray) -> Dist:
@@ -56,6 +63,29 @@ def samples_to_dist(samples: np.ndarray) -> Dist:
     total = samples.shape[0]
     atoms = [(key, count / total) for key, count in counts.items()]
     return Dist.from_atoms(atoms)
+
+
+def get_input_pattern(
+    length: int,
+    *,
+    pattern_name: str = DEFAULT_PATTERN_NAME,
+    pattern_side: int = DEFAULT_PATTERN_SIDE,
+) -> np.ndarray:
+    """Return an input array consistent with ``generate_patterns``."""
+
+    patterns = generate_patterns(length)
+    if pattern_name not in patterns:
+        available = ", ".join(sorted(patterns))
+        raise ValueError(
+            f"Unknown pattern '{pattern_name}' for length {length}. "
+            f"Available patterns: {available}"
+        )
+
+    if pattern_side not in (0, 1):
+        raise ValueError("pattern_side must be 0 (D) or 1 (D')")
+
+    dataset = patterns[pattern_name][pattern_side]
+    return np.asarray(dataset, dtype=float)
 
 
 def _format_cell(value: object) -> str:
@@ -160,6 +190,8 @@ def experiment_vary_m(
     grid_size: int,
     grid_size_ref: int,
     n_samples: int,
+    pattern_name: str = DEFAULT_PATTERN_NAME,
+    pattern_side: int = DEFAULT_PATTERN_SIDE,
 ) -> Dict[str, Sequence[float]]:
     """Evaluate runtime and privacy loss while varying the number of queries."""
 
@@ -169,7 +201,7 @@ def experiment_vary_m(
     sampling_privacy_losses = []
 
     for m in m_values:
-        a = np.linspace(-0.5, 0.5, m)
+        a = get_input_pattern(m, pattern_name=pattern_name, pattern_side=pattern_side)
         dist_ref, _ = run_analytic(a, eps=eps, c=c, t=t, grid_size=grid_size_ref)
 
         dist, analytic_time = run_analytic(a, eps=eps, c=c, t=t, grid_size=grid_size)
@@ -203,6 +235,8 @@ def experiment_vary_c(
     grid_size: int,
     grid_size_ref: int,
     n_samples: int,
+    pattern_name: str = DEFAULT_PATTERN_NAME,
+    pattern_side: int = DEFAULT_PATTERN_SIDE,
 ) -> Dict[str, Sequence[float]]:
     """Evaluate runtime and privacy loss while varying the TRUE budget ``c``."""
 
@@ -211,7 +245,7 @@ def experiment_vary_c(
     sampling_times = []
     sampling_privacy_losses = []
 
-    a = np.linspace(-0.5, 0.5, m)
+    a = get_input_pattern(m, pattern_name=pattern_name, pattern_side=pattern_side)
 
     for c in c_values:
         dist_ref, _ = run_analytic(a, eps=eps, c=c, t=t, grid_size=grid_size_ref)
@@ -245,10 +279,12 @@ def experiment_grid_size(
     eps: float,
     c: int,
     t: float,
+    pattern_name: str = DEFAULT_PATTERN_NAME,
+    pattern_side: int = DEFAULT_PATTERN_SIDE,
 ) -> Dict[str, Sequence[float]]:
     """Inspect runtime and privacy loss for different analytic grid resolutions."""
 
-    a = np.linspace(-0.5, 0.5, m)
+    a = get_input_pattern(m, pattern_name=pattern_name, pattern_side=pattern_side)
     reference_size = max(grid_sizes)
     dist_ref, _ = run_analytic(a, eps=eps, c=c, t=t, grid_size=reference_size)
 
@@ -276,10 +312,12 @@ def experiment_sampling_counts(
     c: int,
     t: float,
     grid_size: int,
+    pattern_name: str = DEFAULT_PATTERN_NAME,
+    pattern_side: int = DEFAULT_PATTERN_SIDE,
 ) -> Dict[str, Sequence[float]]:
     """Inspect runtime and privacy loss for different sampling counts."""
 
-    a = np.linspace(-0.5, 0.5, m)
+    a = get_input_pattern(m, pattern_name=pattern_name, pattern_side=pattern_side)
     dist_ref, analytic_time = run_analytic(a, eps=eps, c=c, t=t, grid_size=grid_size)
 
     times = []
@@ -414,6 +452,11 @@ def main() -> None:
     grid_size_reference = 4000
     n_samples_default = 30000
 
+    pattern_name = DEFAULT_PATTERN_NAME
+    pattern_side = DEFAULT_PATTERN_SIDE
+    pattern_side_label = "D" if pattern_side == 0 else "D'"
+    pattern_descriptor = f"{pattern_name} ({pattern_side_label})"
+
     m_values = [10, 20, 30, 40, 50]
     results_m = experiment_vary_m(
         m_values,
@@ -423,9 +466,14 @@ def main() -> None:
         grid_size=grid_size_default,
         grid_size_ref=grid_size_reference,
         n_samples=n_samples_default,
+        pattern_name=pattern_name,
+        pattern_side=pattern_side,
     )
     write_table(
-        title="SVT1 runtime and privacy loss vs. number of queries",
+        title=(
+            "SVT1 runtime and privacy loss vs. number of queries "
+            f"[{pattern_descriptor}]"
+        ),
         headers=[
             "Number of queries",
             "Analytic runtime [s]",
@@ -449,7 +497,10 @@ def main() -> None:
         results_m["analytic_privacy_losses"],
         results_m["sampling_privacy_losses"],
         xlabel="Number of queries",
-        title="SVT1 runtime and privacy loss vs. number of queries",
+        title=(
+            "SVT1 runtime and privacy loss vs. number of queries "
+            f"[{pattern_descriptor}]"
+        ),
         output_path=output_dir / "svt1_compare_vs_m.png",
     )
 
@@ -462,9 +513,14 @@ def main() -> None:
         grid_size=grid_size_default,
         grid_size_ref=grid_size_reference,
         n_samples=n_samples_default,
+        pattern_name=pattern_name,
+        pattern_side=pattern_side,
     )
     write_table(
-        title="SVT1 runtime and privacy loss vs. TRUE budget",
+        title=(
+            "SVT1 runtime and privacy loss vs. TRUE budget "
+            f"[{pattern_descriptor}]"
+        ),
         headers=[
             "TRUE budget c",
             "Analytic runtime [s]",
@@ -488,7 +544,10 @@ def main() -> None:
         results_c["analytic_privacy_losses"],
         results_c["sampling_privacy_losses"],
         xlabel="TRUE budget c",
-        title="SVT1 runtime and privacy loss vs. TRUE budget",
+        title=(
+            "SVT1 runtime and privacy loss vs. TRUE budget "
+            f"[{pattern_descriptor}]"
+        ),
         output_path=output_dir / "svt1_compare_vs_c.png",
     )
 
@@ -499,9 +558,14 @@ def main() -> None:
         eps=eps,
         c=2,
         t=t,
+        pattern_name=pattern_name,
+        pattern_side=pattern_side,
     )
     write_table(
-        title="Analytic method: effect of Laplace grid size",
+        title=(
+            "Analytic method: effect of Laplace grid size "
+            f"[{pattern_descriptor}]"
+        ),
         headers=[
             "Laplace grid size",
             "Runtime [s]",
@@ -529,9 +593,14 @@ def main() -> None:
         c=2,
         t=t,
         grid_size=grid_size_reference,
+        pattern_name=pattern_name,
+        pattern_side=pattern_side,
     )
     write_table(
-        title="Sampling method: effect of sample count",
+        title=(
+            "Sampling method: effect of sample count "
+            f"[{pattern_descriptor}]"
+        ),
         headers=[
             "Number of Monte Carlo samples",
             "Runtime [s]",
