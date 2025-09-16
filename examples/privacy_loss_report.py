@@ -88,19 +88,33 @@ def laplace_parallel_dist(a: np.ndarray, eps_each: float, n_parallel: int) -> Li
     return [add_distributions(x_dist, n) for n in noise_list]
 
 
-def svt1_joint_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> Dist:
-    """Return joint output distribution of SVT1 using basic operations."""
+def svt1_joint_dist(
+    a: np.ndarray,
+    eps: float,
+    c: int = 2,
+    t: float = 1.0,
+    grid_size: int = 1000,
+) -> Dist:
+    """Return joint output distribution of SVT1 using basic operations.
+
+    Args:
+        a: Query answers.
+        eps: Privacy parameter.
+        c: Maximum number of TRUE outputs.
+        t: Threshold value.
+        grid_size: Number of discretization points for Laplace noises.
+    """
 
     x = np.atleast_1d(a)
     eps1 = eps / 2.0
     eps2 = eps - eps1
 
     # しきい値に加えるノイズ ρ ~ Lap(1/ε1)
-    rho_dist = create_laplace_noise(b=1 / eps1)
+    rho_dist = create_laplace_noise(b=1 / eps1, grid_size=grid_size)
     thresh_dist = add_distributions(Dist.deterministic(t), rho_dist)
 
     # 各クエリに加えるノイズ ν_i ~ Lap(2c/ε2)
-    nu_dists = create_laplace_noise(b=2 * c / eps2, size=len(x))
+    nu_dists = create_laplace_noise(b=2 * c / eps2, size=len(x), grid_size=grid_size)
 
     sequences: Dict[Tuple[float, ...], Tuple[float, int]] = {(): (1.0, 0)}
 
