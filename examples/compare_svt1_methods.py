@@ -26,7 +26,7 @@ import csv
 import math
 import time
 from pathlib import Path
-from typing import Dict, Sequence, Tuple
+from typing import Callable, Dict, Sequence, Tuple
 
 import matplotlib
 import numpy as np
@@ -65,13 +65,13 @@ def samples_to_dist(samples: np.ndarray) -> Dist:
     return Dist.from_atoms(atoms)
 
 
-def get_input_pattern(
+def get_input_pattern_pair(
     length: int,
     *,
     pattern_name: str = DEFAULT_PATTERN_NAME,
     pattern_side: int = DEFAULT_PATTERN_SIDE,
-) -> np.ndarray:
-    """Return an input array consistent with ``generate_patterns``."""
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Return an adjacent dataset pair consistent with ``generate_patterns``."""
 
     patterns = generate_patterns(length)
     if pattern_name not in patterns:
@@ -84,8 +84,24 @@ def get_input_pattern(
     if pattern_side not in (0, 1):
         raise ValueError("pattern_side must be 0 (D) or 1 (D')")
 
-    dataset = patterns[pattern_name][pattern_side]
-    return np.asarray(dataset, dtype=float)
+    dataset_d, dataset_dp = patterns[pattern_name]
+    if pattern_side == 1:
+        dataset_d, dataset_dp = dataset_dp, dataset_d
+
+    return np.asarray(dataset_d, dtype=float), np.asarray(dataset_dp, dtype=float)
+
+
+def evaluate_privacy(
+    runner: Callable[[np.ndarray], Tuple[Dist, float]],
+    datasets: Tuple[np.ndarray, np.ndarray],
+) -> Tuple[float, float]:
+    """Execute ``runner`` on an adjacent pair and return ε plus total runtime."""
+
+    dataset_d, dataset_dp = datasets
+    dist_d, time_d = runner(dataset_d)
+    dist_dp, time_dp = runner(dataset_dp)
+    privacy_loss = epsilon_from_dist(dist_d, dist_dp)
+    return privacy_loss, time_d + time_dp
 
 
 def _format_cell(value: object) -> str:
@@ -199,23 +215,35 @@ def experiment_vary_m(
     analytic_privacy_losses = []
     sampling_times = []
     sampling_privacy_losses = []
+    reference_privacy_losses = []
 
     for m in m_values:
-        a = get_input_pattern(m, pattern_name=pattern_name, pattern_side=pattern_side)
-        dist_ref, _ = run_analytic(a, eps=eps, c=c, t=t, grid_size=grid_size_ref)
-
-        dist, analytic_time = run_analytic(a, eps=eps, c=c, t=t, grid_size=grid_size)
-        analytic_privacy = epsilon_from_dist(dist, dist_ref)
-
-        sample_dist, sample_time = run_sampling(
-            a, eps=eps, c=c, t=t, n_samples=n_samples
+        datasets = get_input_pattern_pair(
+            m, pattern_name=pattern_name, pattern_side=pattern_side
         )
-        sampling_privacy = epsilon_from_dist(sample_dist, dist_ref)
+
+        reference_privacy, _ = evaluate_privacy(
+            lambda data: run_analytic(
+                data, eps=eps, c=c, t=t, grid_size=grid_size_ref
+            ),
+            datasets,
+        )
+
+        analytic_privacy, analytic_time = evaluate_privacy(
+            lambda data: run_analytic(data, eps=eps, c=c, t=t, grid_size=grid_size),
+            datasets,
+        )
+
+        sampling_privacy, sampling_time = evaluate_privacy(
+            lambda data: run_sampling(data, eps=eps, c=c, t=t, n_samples=n_samples),
+            datasets,
+        )
 
         analytic_times.append(analytic_time)
         analytic_privacy_losses.append(analytic_privacy)
-        sampling_times.append(sample_time)
+        sampling_times.append(sampling_time)
         sampling_privacy_losses.append(sampling_privacy)
+        reference_privacy_losses.append(reference_privacy)
 
     return {
         "m_values": list(m_values),
@@ -223,6 +251,7 @@ def experiment_vary_m(
         "analytic_privacy_losses": analytic_privacy_losses,
         "sampling_times": sampling_times,
         "sampling_privacy_losses": sampling_privacy_losses,
+        "reference_privacy_losses": reference_privacy_losses,
     }
 
 
@@ -244,24 +273,35 @@ def experiment_vary_c(
     analytic_privacy_losses = []
     sampling_times = []
     sampling_privacy_losses = []
+    reference_privacy_losses = []
 
-    a = get_input_pattern(m, pattern_name=pattern_name, pattern_side=pattern_side)
+    datasets = get_input_pattern_pair(
+        m, pattern_name=pattern_name, pattern_side=pattern_side
+    )
 
     for c in c_values:
-        dist_ref, _ = run_analytic(a, eps=eps, c=c, t=t, grid_size=grid_size_ref)
-
-        dist, analytic_time = run_analytic(a, eps=eps, c=c, t=t, grid_size=grid_size)
-        analytic_privacy = epsilon_from_dist(dist, dist_ref)
-
-        sample_dist, sample_time = run_sampling(
-            a, eps=eps, c=c, t=t, n_samples=n_samples
+        reference_privacy, _ = evaluate_privacy(
+            lambda data: run_analytic(
+                data, eps=eps, c=c, t=t, grid_size=grid_size_ref
+            ),
+            datasets,
         )
-        sampling_privacy = epsilon_from_dist(sample_dist, dist_ref)
+
+        analytic_privacy, analytic_time = evaluate_privacy(
+            lambda data: run_analytic(data, eps=eps, c=c, t=t, grid_size=grid_size),
+            datasets,
+        )
+
+        sampling_privacy, sampling_time = evaluate_privacy(
+            lambda data: run_sampling(data, eps=eps, c=c, t=t, n_samples=n_samples),
+            datasets,
+        )
 
         analytic_times.append(analytic_time)
         analytic_privacy_losses.append(analytic_privacy)
-        sampling_times.append(sample_time)
+        sampling_times.append(sampling_time)
         sampling_privacy_losses.append(sampling_privacy)
+        reference_privacy_losses.append(reference_privacy)
 
     return {
         "c_values": list(c_values),
@@ -269,6 +309,7 @@ def experiment_vary_c(
         "analytic_privacy_losses": analytic_privacy_losses,
         "sampling_times": sampling_times,
         "sampling_privacy_losses": sampling_privacy_losses,
+        "reference_privacy_losses": reference_privacy_losses,
     }
 
 
@@ -284,15 +325,24 @@ def experiment_grid_size(
 ) -> Dict[str, Sequence[float]]:
     """Inspect runtime and privacy loss for different analytic grid resolutions."""
 
-    a = get_input_pattern(m, pattern_name=pattern_name, pattern_side=pattern_side)
+    datasets = get_input_pattern_pair(
+        m, pattern_name=pattern_name, pattern_side=pattern_side
+    )
     reference_size = max(grid_sizes)
-    dist_ref, _ = run_analytic(a, eps=eps, c=c, t=t, grid_size=reference_size)
+    reference_privacy, _ = evaluate_privacy(
+        lambda data: run_analytic(data, eps=eps, c=c, t=t, grid_size=reference_size),
+        datasets,
+    )
 
     times = []
     privacy_losses = []
     for grid_size in grid_sizes:
-        dist, elapsed = run_analytic(a, eps=eps, c=c, t=t, grid_size=grid_size)
-        privacy_loss = epsilon_from_dist(dist, dist_ref)
+        privacy_loss, elapsed = evaluate_privacy(
+            lambda data, grid_size=grid_size: run_analytic(
+                data, eps=eps, c=c, t=t, grid_size=grid_size
+            ),
+            datasets,
+        )
         times.append(elapsed)
         privacy_losses.append(privacy_loss)
 
@@ -301,6 +351,7 @@ def experiment_grid_size(
         "times": times,
         "privacy_losses": privacy_losses,
         "reference_size": reference_size,
+        "reference_privacy_loss": reference_privacy,
     }
 
 
@@ -317,16 +368,23 @@ def experiment_sampling_counts(
 ) -> Dict[str, Sequence[float]]:
     """Inspect runtime and privacy loss for different sampling counts."""
 
-    a = get_input_pattern(m, pattern_name=pattern_name, pattern_side=pattern_side)
-    dist_ref, analytic_time = run_analytic(a, eps=eps, c=c, t=t, grid_size=grid_size)
+    datasets = get_input_pattern_pair(
+        m, pattern_name=pattern_name, pattern_side=pattern_side
+    )
+    reference_privacy, analytic_time = evaluate_privacy(
+        lambda data: run_analytic(data, eps=eps, c=c, t=t, grid_size=grid_size),
+        datasets,
+    )
 
     times = []
     privacy_losses = []
     for n_samples in sample_counts:
-        sample_dist, elapsed = run_sampling(
-            a, eps=eps, c=c, t=t, n_samples=n_samples
+        privacy_loss, elapsed = evaluate_privacy(
+            lambda data, n_samples=n_samples: run_sampling(
+                data, eps=eps, c=c, t=t, n_samples=n_samples
+            ),
+            datasets,
         )
-        privacy_loss = epsilon_from_dist(sample_dist, dist_ref)
         times.append(elapsed)
         privacy_losses.append(privacy_loss)
 
@@ -335,6 +393,7 @@ def experiment_sampling_counts(
         "times": times,
         "privacy_losses": privacy_losses,
         "analytic_time": analytic_time,
+        "reference_privacy_loss": reference_privacy,
     }
 
 
@@ -345,6 +404,7 @@ def plot_runtime_accuracy(
     analytic_privacy_losses: Sequence[float],
     sampling_privacy_losses: Sequence[float],
     *,
+    reference_privacy_losses: Sequence[float] | None = None,
     xlabel: str,
     title: str,
     output_path: Path,
@@ -361,11 +421,19 @@ def plot_runtime_accuracy(
     ax_time.legend()
 
     ax_privacy.plot(
-        x_values, analytic_privacy_losses, marker="o", label="Analytic vs ref"
+        x_values, analytic_privacy_losses, marker="o", label="Analytic"
     )
     ax_privacy.plot(
-        x_values, sampling_privacy_losses, marker="s", label="Sampling vs ref"
+        x_values, sampling_privacy_losses, marker="s", label="Sampling"
     )
+    if reference_privacy_losses is not None:
+        ax_privacy.plot(
+            x_values,
+            reference_privacy_losses,
+            color="tab:gray",
+            linestyle="--",
+            label="Analytic reference",
+        )
     ax_privacy.set_xlabel(xlabel)
     ax_privacy.set_ylabel(r"Privacy loss $\varepsilon$")
     ax_privacy.grid(True, which="both", axis="both", linestyle=":")
@@ -381,6 +449,7 @@ def plot_grid_size(
     times: Sequence[float],
     privacy_losses: Sequence[float],
     *,
+    reference_privacy_loss: float | None = None,
     output_path: Path,
 ):
     """Plot runtime and privacy loss as functions of the analytic grid size."""
@@ -392,12 +461,19 @@ def plot_grid_size(
     ax_time.set_title("Analytic method: effect of Laplace grid size")
     ax_time.grid(True, linestyle=":")
 
-    ax_privacy.plot(grid_sizes, privacy_losses, marker="o")
+    ax_privacy.plot(grid_sizes, privacy_losses, marker="o", label="Analytic")
     ax_privacy.set_xlabel("Laplace grid size")
-    ax_privacy.set_ylabel(
-        r"Privacy loss $\varepsilon$ vs grid={}".format(max(grid_sizes))
-    )
+    ax_privacy.set_ylabel(r"Privacy loss $\varepsilon$")
+    if reference_privacy_loss is not None:
+        ax_privacy.axhline(
+            reference_privacy_loss,
+            color="tab:gray",
+            linestyle="--",
+            label=f"Reference (grid={max(grid_sizes)})",
+        )
     ax_privacy.grid(True, linestyle=":")
+    if reference_privacy_loss is not None:
+        ax_privacy.legend()
 
     fig.tight_layout()
     fig.savefig(output_path)
@@ -410,6 +486,7 @@ def plot_sampling_counts(
     privacy_losses: Sequence[float],
     *,
     analytic_time: float,
+    reference_privacy_loss: float | None = None,
     output_path: Path,
 ):
     """Plot runtime and privacy loss for different sampling counts."""
@@ -424,12 +501,17 @@ def plot_sampling_counts(
     ax_time.grid(True, which="both", linestyle=":")
     ax_time.legend()
 
-    ax_privacy.plot(
-        sample_counts, privacy_losses, marker="s", label="Sampling vs analytic"
-    )
+    ax_privacy.plot(sample_counts, privacy_losses, marker="s", label="Sampling")
     ax_privacy.set_xscale("log")
     ax_privacy.set_xlabel("Number of Monte Carlo samples")
     ax_privacy.set_ylabel(r"Privacy loss $\varepsilon$")
+    if reference_privacy_loss is not None:
+        ax_privacy.axhline(
+            reference_privacy_loss,
+            color="tab:gray",
+            linestyle="--",
+            label="Analytic reference",
+        )
     ax_privacy.grid(True, which="both", linestyle=":")
     ax_privacy.legend()
 
@@ -454,8 +536,10 @@ def main() -> None:
 
     pattern_name = DEFAULT_PATTERN_NAME
     pattern_side = DEFAULT_PATTERN_SIDE
-    pattern_side_label = "D" if pattern_side == 0 else "D'"
-    pattern_descriptor = f"{pattern_name} ({pattern_side_label})"
+    if pattern_side == 0:
+        pattern_descriptor = f"{pattern_name} (D vs D')"
+    else:
+        pattern_descriptor = f"{pattern_name} (D' vs D)"
 
     m_values = [10, 20, 30, 40, 50]
     results_m = experiment_vary_m(
@@ -480,6 +564,7 @@ def main() -> None:
             "Sampling runtime [s]",
             "Analytic privacy loss ε",
             "Sampling privacy loss ε",
+            "Reference privacy loss ε",
         ],
         columns=[
             results_m["m_values"],
@@ -487,6 +572,7 @@ def main() -> None:
             results_m["sampling_times"],
             results_m["analytic_privacy_losses"],
             results_m["sampling_privacy_losses"],
+            results_m["reference_privacy_losses"],
         ],
         output_path=tables_dir / "svt1_compare_vs_m.csv",
     )
@@ -496,6 +582,7 @@ def main() -> None:
         results_m["sampling_times"],
         results_m["analytic_privacy_losses"],
         results_m["sampling_privacy_losses"],
+        reference_privacy_losses=results_m["reference_privacy_losses"],
         xlabel="Number of queries",
         title=(
             "SVT1 runtime and privacy loss vs. number of queries "
@@ -527,6 +614,7 @@ def main() -> None:
             "Sampling runtime [s]",
             "Analytic privacy loss ε",
             "Sampling privacy loss ε",
+            "Reference privacy loss ε",
         ],
         columns=[
             results_c["c_values"],
@@ -534,6 +622,7 @@ def main() -> None:
             results_c["sampling_times"],
             results_c["analytic_privacy_losses"],
             results_c["sampling_privacy_losses"],
+            results_c["reference_privacy_losses"],
         ],
         output_path=tables_dir / "svt1_compare_vs_c.csv",
     )
@@ -543,6 +632,7 @@ def main() -> None:
         results_c["sampling_times"],
         results_c["analytic_privacy_losses"],
         results_c["sampling_privacy_losses"],
+        reference_privacy_losses=results_c["reference_privacy_losses"],
         xlabel="TRUE budget c",
         title=(
             "SVT1 runtime and privacy loss vs. TRUE budget "
@@ -569,12 +659,17 @@ def main() -> None:
         headers=[
             "Laplace grid size",
             "Runtime [s]",
-            f"Privacy loss ε vs grid={results_grid['reference_size']}",
+            "Privacy loss ε",
+            f"Reference privacy loss ε (grid={results_grid['reference_size']})",
         ],
         columns=[
             results_grid["grid_sizes"],
             results_grid["times"],
             results_grid["privacy_losses"],
+            [
+                results_grid["reference_privacy_loss"]
+                for _ in results_grid["grid_sizes"]
+            ],
         ],
         output_path=tables_dir / "svt1_analytic_grid_size.csv",
     )
@@ -582,6 +677,7 @@ def main() -> None:
         results_grid["grid_sizes"],
         results_grid["times"],
         results_grid["privacy_losses"],
+        reference_privacy_loss=results_grid["reference_privacy_loss"],
         output_path=output_dir / "svt1_analytic_grid_size.png",
     )
 
@@ -605,11 +701,16 @@ def main() -> None:
             "Number of Monte Carlo samples",
             "Runtime [s]",
             "Privacy loss ε",
+            "Reference privacy loss ε",
         ],
         columns=[
             results_sampling["sample_counts"],
             results_sampling["times"],
             results_sampling["privacy_losses"],
+            [
+                results_sampling["reference_privacy_loss"]
+                for _ in results_sampling["sample_counts"]
+            ],
         ],
         output_path=tables_dir / "svt1_sampling_counts.csv",
     )
@@ -617,12 +718,17 @@ def main() -> None:
         "Analytic reference runtime for sampling comparison:",
         _format_cell(results_sampling["analytic_time"]),
     )
+    print(
+        "Analytic reference privacy loss:",
+        _format_cell(results_sampling["reference_privacy_loss"]),
+    )
     print()
     plot_sampling_counts(
         results_sampling["sample_counts"],
         results_sampling["times"],
         results_sampling["privacy_losses"],
         analytic_time=results_sampling["analytic_time"],
+        reference_privacy_loss=results_sampling["reference_privacy_loss"],
         output_path=output_dir / "svt1_sampling_counts.png",
     )
 
