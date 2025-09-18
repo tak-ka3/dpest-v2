@@ -10,6 +10,12 @@ from .argmax_op import Argmax, argmax_distribution
 from .prefix_sum_op import PrefixSum, prefix_sum_distributions
 from .sample_op import Sampled, sampled_distribution
 from .condition_op import Compare, Condition, compare_geq, condition_mixture
+from .sparse_vector import (
+    SharedThresholdGrid,
+    SharedThresholdIntegrator,
+    SharedThresholdState,
+    ThresholdBranch,
+)
 from .geometric_op import TruncatedGeometric, truncated_geometric_distribution
 
 __all__ = [
@@ -19,5 +25,7 @@ __all__ = [
     'PrefixSum', 'prefix_sum_distributions',
     'Sampled', 'sampled_distribution',
     'Compare', 'Condition', 'compare_geq', 'condition_mixture',
+    'SharedThresholdGrid', 'SharedThresholdIntegrator',
+    'SharedThresholdState', 'ThresholdBranch',
     'TruncatedGeometric', 'truncated_geometric_distribution',
 ]

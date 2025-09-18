@@ -1,6 +1,7 @@
 import os
 import sys
 import math
+from dataclasses import dataclass
 import numpy as np
 import mmh3
 from typing import Dict, List, Tuple, Optional
@@ -10,7 +11,14 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from dpest.core import Dist
 from dpest.engine import AlgorithmBuilder, vector_argmax, vector_max
-from dpest.operations import add_distributions, compare_geq, Condition
+from dpest.operations import (
+    add_distributions,
+    compare_geq,
+    Condition,
+    SharedThresholdGrid,
+    SharedThresholdIntegrator,
+    ThresholdBranch,
+)
 from dpest.noise import create_laplace_noise, create_exponential_noise
 from dpest.utils.input_patterns import generate_patterns
 
@@ -95,61 +103,72 @@ def svt1_joint_dist(
     t: float = 1.0,
     grid_size: int = 1000,
 ) -> Dist:
-    """Return joint output distribution of SVT1 using basic operations.
-
-    Args:
-        a: Query answers.
-        eps: Privacy parameter.
-        c: Maximum number of TRUE outputs.
-        t: Threshold value.
-        grid_size: Number of discretization points for Laplace noises.
-    """
+    """Return joint output distribution of SVT1 using primitive operations."""
 
     x = np.atleast_1d(a)
     eps1 = eps / 2.0
     eps2 = eps - eps1
 
-    # しきい値に加えるノイズ ρ ~ Lap(1/ε1)
+    if c < 0:
+        raise ValueError("c must be non-negative")
+
     rho_dist = create_laplace_noise(b=1 / eps1, grid_size=grid_size)
     thresh_dist = add_distributions(Dist.deterministic(t), rho_dist)
 
-    # 各クエリに加えるノイズ ν_i ~ Lap(2c/ε2)
-    nu_dists = create_laplace_noise(b=2 * c / eps2, size=len(x), grid_size=grid_size)
+    nu_dists = create_laplace_noise(
+        b=2 * c / eps2, size=len(x), grid_size=grid_size
+    ) if len(x) > 0 else []
+    noisy_query_dists = [
+        add_distributions(Dist.deterministic(float(val)), noise)
+        for val, noise in zip(x, nu_dists)
+    ]
 
-    sequences: Dict[Tuple[float, ...], Tuple[float, int]] = {(): (1.0, 0)}
+    threshold_grid = SharedThresholdGrid.from_dist(thresh_dist)
+    integrator = SharedThresholdIntegrator(threshold_grid)
+    true_value = 1.0
+    false_value = 0.0
+    abort_value = -1.0
 
-    for val, nu in zip(x, nu_dists):
-        val_dist = add_distributions(Dist.deterministic(float(val)), nu)
-        cmp_dist = compare_geq(val_dist, thresh_dist)
-        p_true = next((w for v, w in cmp_dist.atoms if v == 1.0), 0.0)
-        p_false = next((w for v, w in cmp_dist.atoms if v == 0.0), 0.0)
+    @dataclass(frozen=True)
+    class SVT1State:
+        true_count: int
+        halted: bool
 
-        new_sequences: Dict[Tuple[float, ...], Tuple[float, int]] = {}
-        for seq, (prob, k) in sequences.items():
-            if k >= c:
-                new_seq = seq + (-1.0,)
-                new_sequences[new_seq] = (
-                    new_sequences.get(new_seq, (0.0, k))[0] + prob,
-                    k,
+    states = integrator.initial_states(
+        SVT1State(true_count=0, halted=(c <= 0))
+    )
+
+    for noisy_dist in noisy_query_dists:
+        # Follow Algorithm 1: compare the noisy query against the shared
+        # threshold and branch into TRUE, FALSE, or ABORT outcomes.
+
+        def transition(seq, state, grid=threshold_grid, noisy=noisy_dist):
+            status: SVT1State = state.payload
+            if status.halted:
+                yield ThresholdBranch(symbol=abort_value, event_prob=grid.ones(), payload=status)
+                return
+
+            p_true = np.clip(grid.tail_probabilities(noisy), 0.0, 1.0)
+            p_false = np.clip(1.0 - p_true, 0.0, 1.0)
+
+            if np.any(p_true > 0.0):
+                next_count = status.true_count + 1
+                yield ThresholdBranch(
+                    symbol=true_value,
+                    event_prob=p_true,
+                    payload=SVT1State(next_count, halted=(next_count >= c)),
                 )
-                continue
-            if p_true > 0:
-                seq_true = seq + (1.0,)
-                new_sequences[seq_true] = (
-                    new_sequences.get(seq_true, (0.0, k + 1))[0] + prob * p_true,
-                    k + 1,
-                )
-            if p_false > 0:
-                seq_false = seq + (0.0,)
-                new_sequences[seq_false] = (
-                    new_sequences.get(seq_false, (0.0, k))[0] + prob * p_false,
-                    k,
-                )
-        sequences = new_sequences
 
-    atoms = [(seq, prob) for seq, (prob, _) in sequences.items()]
-    dist = Dist.from_atoms(atoms)
-    dist.normalize()
+            if np.any(p_false > 0.0):
+                yield ThresholdBranch(
+                    symbol=false_value,
+                    event_prob=p_false,
+                    payload=status,
+                )
+
+        states = integrator.step(states, transition)
+
+    dist = integrator.finalize(states)
     return dist
 
 
