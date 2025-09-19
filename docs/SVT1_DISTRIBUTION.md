@@ -15,6 +15,8 @@
 - `add_distributions` により \(V_i = q_i + \xi_i\) の分布を求めます。
 - 確率密度関数は次式になります。
   \[ f_{V_i}(z) = \frac{\varepsilon_2}{4c} \exp\left(-\frac{\varepsilon_2}{2c} |z - q_i|\right) \]
+- 実装ではしきい値グリッド上で \(P(V_i \ge T)\) を解析式 (ラプラス分布の生存関数)
+  で直接評価し、真と偽の分岐確率を得ています。
 
 ## 3. しきい値比較 (CompareGEQ)
 

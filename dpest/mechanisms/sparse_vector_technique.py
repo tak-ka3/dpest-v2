@@ -36,7 +36,12 @@ class SparseVectorTechnique1(Mechanism):
         x = np.atleast_2d(a)
 
         rho = np.random.laplace(scale=1 / self.eps1, size=(n_samples, 1))
-        nu = np.random.laplace(scale=2*self.c / self.eps2, size=(n_samples, a.shape[0]))
+        if self.eps2 <= 0:
+            raise ValueError("eps must be positive")
+
+        nu = np.random.laplace(
+            scale=2 * self.c / self.eps2, size=(n_samples, a.shape[0])
+        )
 
         m = nu + x  # broadcasts x vertically
         cmp = m >= (rho + self.t)   # broadcasts rho horizontally
@@ -85,7 +90,12 @@ class SparseVectorTechnique2(Mechanism):
         n_queries = a.shape[0]
 
         rho = np.random.laplace(scale=self.c / self.eps1, size=(n_samples,))
-        nu = np.random.laplace(scale=2*self.c / self.eps2, size=(n_samples, n_queries))
+        if self.eps2 <= 0:
+            raise ValueError("eps must be positive")
+
+        nu = np.random.laplace(
+            scale=2 * self.c / self.eps2, size=(n_samples, n_queries)
+        )
 
         m = nu + x  # broadcasts x vertically
 
