@@ -106,6 +106,9 @@ def svt1_joint_dist(
     """Return joint output distribution of SVT1 using primitive operations."""
 
     x = np.atleast_1d(a)
+    if eps <= 0:
+        raise ValueError("eps must be positive")
+
     eps1 = eps / 2.0
     eps2 = eps - eps1
 
@@ -115,9 +118,14 @@ def svt1_joint_dist(
     rho_dist = create_laplace_noise(b=1 / eps1, grid_size=grid_size)
     thresh_dist = add_distributions(Dist.deterministic(t), rho_dist)
 
-    nu_dists = create_laplace_noise(
-        b=2 * c / eps2, size=len(x), grid_size=grid_size
-    ) if len(x) > 0 else []
+    # Algorithm 1 allocates ε₂ across TRUE answers without scaling the per-query
+    # noise by ``c``; each comparison uses Lap(4/ε₂).
+    nu_scale = 4.0 / eps2
+    nu_dists = (
+        create_laplace_noise(b=nu_scale, size=len(x), grid_size=grid_size)
+        if len(x) > 0
+        else []
+    )
     noisy_query_dists = [
         add_distributions(Dist.deterministic(float(val)), noise)
         for val, noise in zip(x, nu_dists)
@@ -176,6 +184,9 @@ def svt2_joint_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> Di
     """Return joint output distribution of SVT2 using basic operations."""
 
     x = np.atleast_1d(a)
+    if eps <= 0:
+        raise ValueError("eps must be positive")
+
     eps1 = eps / 2.0
     eps2 = eps - eps1
 
@@ -187,8 +198,10 @@ def svt2_joint_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> Di
     rho_reset = create_laplace_noise(b=c / eps2)
     thresh_reset = add_distributions(Dist.deterministic(t), rho_reset)
 
-    # Noise for each query ν_i ~ Lap(2c/ε₂)
-    nu_dists = create_laplace_noise(b=2 * c / eps2, size=len(x))
+    # Noise for each query ν_i ~ Lap(4/ε₂)
+    # Algorithm 2 reuses the same per-query calibration as Algorithm 1.
+    nu_scale = 4.0 / eps2
+    nu_dists = create_laplace_noise(b=nu_scale, size=len(x))
 
     sequences: Dict[Tuple[float, ...], Tuple[float, int, Dist]] = {
         (): (1.0, 0, thresh_init)

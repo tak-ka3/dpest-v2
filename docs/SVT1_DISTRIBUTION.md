@@ -11,10 +11,10 @@
 
 ## 2. クエリ値分布 (Add)
 
-- 各クエリ値 \(q_i\) に独立なノイズ \(\xi_i \sim \mathrm{Lap}(2c/\varepsilon_2)\) を加えます。
+- 各クエリ値 \(q_i\) に独立なノイズ \(\xi_i \sim \mathrm{Lap}(4/\varepsilon_2)\) を加えます。
 - `add_distributions` により \(V_i = q_i + \xi_i\) の分布を求めます。
 - 確率密度関数は次式になります。
-  \[ f_{V_i}(z) = \frac{\varepsilon_2}{4c} \exp\left(-\frac{\varepsilon_2}{2c} |z - q_i|\right) \]
+  \[ f_{V_i}(z) = \frac{\varepsilon_2}{8} \exp\left(-\frac{\varepsilon_2}{4} |z - q_i|\right) \]
 
 ## 3. しきい値比較 (CompareGEQ)
 
