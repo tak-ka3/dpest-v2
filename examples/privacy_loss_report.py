@@ -118,18 +118,7 @@ def svt1_joint_dist(
     rho_dist = create_laplace_noise(b=1 / eps1, grid_size=grid_size)
     thresh_dist = add_distributions(Dist.deterministic(t), rho_dist)
 
-    # Algorithm 1 allocates ε₂ across TRUE answers without scaling the per-query
-    # noise by ``c``; each comparison uses Lap(4/ε₂).
-    nu_scale = 4.0 / eps2
-    nu_dists = (
-        create_laplace_noise(b=nu_scale, size=len(x), grid_size=grid_size)
-        if len(x) > 0
-        else []
-    )
-    noisy_query_dists = [
-        add_distributions(Dist.deterministic(float(val)), noise)
-        for val, noise in zip(x, nu_dists)
-    ]
+    nu_scale = 2.0 * c / eps2 if len(x) > 0 else 0.0
 
     threshold_grid = SharedThresholdGrid.from_dist(thresh_dist)
     integrator = SharedThresholdIntegrator(threshold_grid)
@@ -146,17 +135,27 @@ def svt1_joint_dist(
         SVT1State(true_count=0, halted=(c <= 0))
     )
 
-    for noisy_dist in noisy_query_dists:
+    for query_value in x:
         # Follow Algorithm 1: compare the noisy query against the shared
         # threshold and branch into TRUE, FALSE, or ABORT outcomes.
 
-        def transition(seq, state, grid=threshold_grid, noisy=noisy_dist):
+        def transition(seq, state, grid=threshold_grid, value=float(query_value)):
             status: SVT1State = state.payload
             if status.halted:
                 yield ThresholdBranch(symbol=abort_value, event_prob=grid.ones(), payload=status)
                 return
 
-            p_true = np.clip(grid.tail_probabilities(noisy), 0.0, 1.0)
+            diff = grid.values - value
+            positive = diff >= 0.0
+            p_true = np.empty_like(diff, dtype=float)
+            # Laplace survival for ``ν >= diff`` with ν ~ Lap(0, b)
+            if nu_scale <= 0.0:
+                p_true.fill(1.0 if np.all(diff <= 0.0) else 0.0)
+            else:
+                p_true[positive] = 0.5 * np.exp(-diff[positive] / nu_scale)
+                negative = ~positive
+                p_true[negative] = 1.0 - 0.5 * np.exp(diff[negative] / nu_scale)
+            p_true = np.clip(p_true, 0.0, 1.0)
             p_false = np.clip(1.0 - p_true, 0.0, 1.0)
 
             if np.any(p_true > 0.0):
@@ -198,9 +197,8 @@ def svt2_joint_dist(a: np.ndarray, eps: float, c: int = 2, t: float = 1.0) -> Di
     rho_reset = create_laplace_noise(b=c / eps2)
     thresh_reset = add_distributions(Dist.deterministic(t), rho_reset)
 
-    # Noise for each query ν_i ~ Lap(4/ε₂)
-    # Algorithm 2 reuses the same per-query calibration as Algorithm 1.
-    nu_scale = 4.0 / eps2
+    # Noise for each query ν_i ~ Lap(2c/ε₂)
+    nu_scale = 2.0 * c / eps2
     nu_dists = create_laplace_noise(b=nu_scale, size=len(x))
 
     sequences: Dict[Tuple[float, ...], Tuple[float, int, Dist]] = {

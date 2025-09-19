@@ -39,10 +39,9 @@ class SparseVectorTechnique1(Mechanism):
         if self.eps2 <= 0:
             raise ValueError("eps must be positive")
 
-        # Algorithm 1 spends ε₂ across up to ``c`` TRUE answers while keeping the
-        # noise calibration for each query at Lap(4/ε₂).
-        nu_scale = 4.0 / self.eps2
-        nu = np.random.laplace(scale=nu_scale, size=(n_samples, a.shape[0]))
+        nu = np.random.laplace(
+            scale=2 * self.c / self.eps2, size=(n_samples, a.shape[0])
+        )
 
         m = nu + x  # broadcasts x vertically
         cmp = m >= (rho + self.t)   # broadcasts rho horizontally
@@ -94,9 +93,9 @@ class SparseVectorTechnique2(Mechanism):
         if self.eps2 <= 0:
             raise ValueError("eps must be positive")
 
-        # Algorithm 2 shares the same per-query Laplace scale as Algorithm 1.
-        nu_scale = 4.0 / self.eps2
-        nu = np.random.laplace(scale=nu_scale, size=(n_samples, n_queries))
+        nu = np.random.laplace(
+            scale=2 * self.c / self.eps2, size=(n_samples, n_queries)
+        )
 
         m = nu + x  # broadcasts x vertically
 
