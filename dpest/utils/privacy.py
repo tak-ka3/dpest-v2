@@ -82,8 +82,46 @@ def estimate_privacy_loss(P: Dist, Q: Dist) -> float:
 
 
 def epsilon_from_list(P_list: List[Dist], Q_list: List[Dist]) -> float:
-    """Compute privacy loss for lists of distributions."""
+    """Compute privacy loss for lists of distributions.
+
+    This function uses marginal composition (sum of individual epsilons).
+    For a more accurate estimate considering joint distribution, use
+    epsilon_from_list_joint() instead.
+    """
     return sum(epsilon_from_dist(P, Q) for P, Q in zip(P_list, Q_list))
+
+
+def epsilon_from_list_joint(P_list: List[Dist], Q_list: List[Dist], bins: int = 100) -> float:
+    """Compute privacy loss using joint distribution of output vectors.
+
+    This function is more accurate than epsilon_from_list() for algorithms
+    with dependencies between outputs (e.g., SVT), as it considers the
+    joint distribution rather than marginal distributions.
+
+    Args:
+        P_list: List of output distributions for dataset D
+        Q_list: List of output distributions for dataset D'
+        bins: Number of bins for histogram (if needed)
+
+    Returns:
+        Estimated epsilon using joint distribution
+    """
+    # Check if distributions have joint samples attached
+    if (len(P_list) > 0 and hasattr(P_list[0], '_joint_samples') and
+        len(Q_list) > 0 and hasattr(Q_list[0], '_joint_samples')):
+        # Use the saved joint samples
+        P_samples = P_list[0]._joint_samples
+        Q_samples = Q_list[0]._joint_samples
+        return epsilon_from_samples_matrix(P_samples, Q_samples, bins=bins)
+    else:
+        # Fallback to marginal composition
+        import warnings
+        warnings.warn(
+            "Joint samples not available, falling back to marginal composition. "
+            "For accurate joint distribution estimation, ensure the algorithm uses sampling mode.",
+            UserWarning
+        )
+        return epsilon_from_list(P_list, Q_list)
 
 
 def epsilon_from_samples(P: np.ndarray, Q: np.ndarray, bins: int = 50) -> float:

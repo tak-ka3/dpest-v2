@@ -126,7 +126,7 @@ class Engine:
             import warnings
             warnings.warn("Sampling mode detected due to variable dependencies. Executing with Monte Carlo sampling.",
                           UserWarning)
-            return self._execute_sampling(plan.graph, input_dist, n_samples=200)
+            return self._execute_sampling(plan.graph, input_dist, n_samples=100)
         else:
             # 解析モード: 既に計算済みの結果を返す
             return plan.options.get('result')
@@ -189,8 +189,18 @@ class Engine:
 
             return np.array(samples)
 
-        # Sampledオペレーションを使用して分布を構築
-        result = Sampled.apply(sample_function, n_samples=n_samples)
+        # サンプル配列を生成（1回のみ）
+        sample_array = sample_function(n_samples)
+
+        # 既存のサンプル配列から分布を構築（重複実行を回避）
+        result = Sampled.from_samples(sample_array, bins=100)
+
+        # 結合分布用にサンプル配列も保存
+        if isinstance(result, list):
+            for dist in result:
+                dist._joint_samples = sample_array
+        elif isinstance(result, Dist):
+            result._joint_samples = sample_array
 
         return result
 

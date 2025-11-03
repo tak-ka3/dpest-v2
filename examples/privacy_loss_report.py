@@ -21,6 +21,7 @@ from dpest.mechanisms.geometric import TruncatedGeometricMechanism
 from dpest.utils.privacy import (
     epsilon_from_dist,
     epsilon_from_list,
+    epsilon_from_list_joint,
     epsilon_from_samples_matrix,
 )
 
@@ -494,6 +495,7 @@ def estimate_algorithm(
     Otherwise lists of marginals are summed using ``epsilon_from_list``.
     """
     eps_max = 0.0
+    print(f"joint_dist_func: {joint_dist_func}, dist_func: {dist_func}, mechanism: {mechanism}")
     for D, Dp in pairs:
         if joint_dist_func is not None:
             if extra is None:
@@ -511,7 +513,9 @@ def estimate_algorithm(
                 P = dist_func(D, eps, *extra)
                 Q = dist_func(Dp, eps, *extra)
             if isinstance(P, list):
-                eps_val = epsilon_from_list(P, Q)
+                # Use joint distribution for accurate estimation
+                print(f"P: {P}")
+                eps_val = epsilon_from_list_joint(P, Q, bins=100)
             else:
                 eps_val = epsilon_from_dist(P, Q)
         else:
