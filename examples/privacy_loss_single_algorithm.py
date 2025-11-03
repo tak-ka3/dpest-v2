@@ -20,18 +20,19 @@ from privacy_loss_report import (
     rappor_dist,
 )
 from dpest.utils.input_patterns import generate_patterns
-from dpest.mechanisms.sparse_vector_technique import (
-    SparseVectorTechnique1,
-    SparseVectorTechnique2,
-    SparseVectorTechnique3,
-    SparseVectorTechnique4,
-    SparseVectorTechnique5,
-    SparseVectorTechnique6,
-    NumericalSVT,
-)
 from dpest.mechanisms.prefix_sum import PrefixSum
 from dpest.mechanisms.geometric import TruncatedGeometricMechanism
 from dpest.mechanisms.parallel import SVT34Parallel
+# 新しい分布ベースのSVT実装を使用
+from dpest.algorithms import (
+    svt1_dist,
+    svt2_dist,
+    svt3_dist,
+    svt4_dist,
+    svt5_dist,
+    svt6_dist,
+    numerical_svt_dist,
+)
 
 
 INPUT_SIZES = {
@@ -115,28 +116,28 @@ def compute_epsilon(name: str) -> float:
         return estimate_algorithm(name, pairs, dist_func=report_noisy_max4_dist)
     if name == "SVT1":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, mechanism=SparseVectorTechnique1(eps=0.1))
+        return estimate_algorithm(name, pairs, dist_func=svt1_dist)
     if name == "SVT2":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, mechanism=SparseVectorTechnique2(eps=0.1))
+        return estimate_algorithm(name, pairs, dist_func=svt2_dist)
     if name == "SVT3":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, mechanism=SparseVectorTechnique3(eps=0.1))
+        return estimate_algorithm(name, pairs, dist_func=svt3_dist)
     if name == "SVT4":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, mechanism=SparseVectorTechnique4(eps=0.1))
+        return estimate_algorithm(name, pairs, dist_func=svt4_dist)
     if name == "SVT5":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, mechanism=SparseVectorTechnique5(eps=0.1))
+        return estimate_algorithm(name, pairs, dist_func=svt5_dist)
     if name == "SVT6":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, mechanism=SparseVectorTechnique6(eps=0.1))
+        return estimate_algorithm(name, pairs, dist_func=svt6_dist)
     if name == "SVT34Parallel":
         pairs = list(generate_patterns(n).values())
         return estimate_algorithm(name, pairs, mechanism=SVT34Parallel(eps=0.1))
     if name == "NumericalSVT":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, mechanism=NumericalSVT(eps=0.1))
+        return estimate_algorithm(name, pairs, dist_func=numerical_svt_dist)
     if name == "PrefixSum":
         pairs = list(generate_patterns(n).values())
         return estimate_algorithm(name, pairs, mechanism=PrefixSum(eps=0.1))

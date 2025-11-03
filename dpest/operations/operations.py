@@ -41,17 +41,30 @@ class Add:
             dependent = True
 
         if dependent and joint_samples is None:
-            if getattr(x_dist, 'sampler', None) is None or getattr(y_dist, 'sampler', None) is None \
-               or x_dist.sampler is not y_dist.sampler:
-                raise ValueError("Dependent inputs require joint samples or shared sampler")
-            base_sampler = x_dist.sampler
-            x_idx = x_dist.sampler_index or 0
-            y_idx = y_dist.sampler_index or 0
-            samples = base_sampler(n_samples)
-            samples = np.asarray(samples)
-            if samples.ndim == 1:
-                samples = samples.reshape(-1, 1)
-            joint_samples = np.column_stack((samples[:, x_idx], samples[:, y_idx]))
+            # サンプラーが両方にあって、同じサンプラーの場合
+            if getattr(x_dist, 'sampler', None) is not None \
+               and getattr(y_dist, 'sampler', None) is not None \
+               and x_dist.sampler is y_dist.sampler:
+                base_sampler = x_dist.sampler
+                x_idx = x_dist.sampler_index or 0
+                y_idx = y_dist.sampler_index or 0
+                samples = base_sampler(n_samples)
+                samples = np.asarray(samples)
+                if samples.ndim == 1:
+                    samples = samples.reshape(-1, 1)
+                joint_samples = np.column_stack((samples[:, x_idx], samples[:, y_idx]))
+            else:
+                # サンプラーがない、または異なるサンプラーの場合
+                # エラーを投げずに、needs_samplingフラグを設定してプレースホルダーを返す
+                # これによりエンジンレベルでサンプリングモードを検出できる
+                node = Node(op='Add', inputs=[getattr(x_dist, 'node', None), getattr(y_dist, 'node', None)],
+                            dependencies=x_dist.dependencies | y_dist.dependencies,
+                            needs_sampling=True)
+                # プレースホルダーとして空の分布を返す（実際の値は使われない）
+                result = Dist(atoms=[(0.0, 1.0)],
+                              dependencies=x_dist.dependencies | y_dist.dependencies,
+                              node=node)
+                return result
 
         # 依存する入力への対処（サンプルベースの近似）
         if joint_samples is not None:
