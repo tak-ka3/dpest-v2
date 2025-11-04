@@ -29,6 +29,22 @@ class Sampled:
             Dist または Dist のリスト。
         """
         samples = np.asarray(sample_fn(n_samples))
+        return Sampled.from_samples(samples, bins)
+
+    @staticmethod
+    def from_samples(samples: np.ndarray, bins: int = 100) -> Union[Dist, List[Dist]]:
+        """既存のサンプル配列から分布を構築
+
+        Args:
+            samples: サンプル配列 (n_samples,) または (n_samples, k)
+            bins: 連続値の場合のヒストグラム分割数。
+
+        Returns:
+            Dist または Dist のリスト。
+        """
+        samples = np.asarray(samples)
+
+        print(f"Constructing distribution from samples with shape {samples.shape}")
 
         if samples.ndim == 1:
             return Sampled._samples_to_dist(samples, bins)
@@ -40,23 +56,62 @@ class Sampled:
     def _samples_to_dist(samples: np.ndarray, bins: int) -> Dist:
         """1次元サンプルからDistを構築"""
         samples = samples.astype(float)
-        unique_vals = np.unique(samples)
 
-        # 離散的な値が少ない場合は点質量として扱う
-        if np.all(np.mod(unique_vals, 1) == 0) and len(unique_vals) <= bins // 2:
-            counts = [(v, np.sum(samples == v)) for v in unique_vals]
+        # NaNを含むかチェック
+        has_nan = np.any(np.isnan(samples))
+
+        if has_nan:
+            # NaNを分離して処理
+            nan_mask = np.isnan(samples)
+            non_nan_samples = samples[~nan_mask]
+            nan_count = np.sum(nan_mask)
             total = samples.size
-            atoms = [(float(v), c / total) for v, c in counts]
-            return Dist.from_atoms(atoms)
+            nan_prob = nan_count / total if total > 0 else 0.0
 
-        # 連続値の場合はヒストグラムで近似
-        hist, edges = np.histogram(samples, bins=bins, density=True)
-        centers = (edges[:-1] + edges[1:]) / 2
-        dx = edges[1] - edges[0]
-        dist = Dist(density={'x': centers, 'f': hist, 'dx': dx},
-                    support=[Interval(centers[0], centers[-1])])
-        dist.normalize()
-        return dist
+            if len(non_nan_samples) == 0:
+                # 全てNaNの場合
+                return Dist.from_atoms([(float('nan'), 1.0)])
+
+            # 非NaN値の分布を構築
+            unique_vals = np.unique(non_nan_samples)
+
+            # 離散的な値が少ない場合は点質量として扱う
+            if np.all(np.mod(unique_vals, 1) == 0) and len(unique_vals) <= bins // 2:
+                counts = [(v, np.sum(non_nan_samples == v)) for v in unique_vals]
+                # NaNと非NaN値の両方を含むatoms
+                atoms = [(float(v), c / total) for v, c in counts]
+                atoms.append((float('nan'), nan_prob))
+                return Dist.from_atoms(atoms)
+            else:
+                # 連続値の場合 - NaNは別途処理が必要
+                # 今のところ離散化して対応
+                hist, edges = np.histogram(non_nan_samples, bins=bins, density=False)
+                atoms = []
+                for i in range(len(hist)):
+                    if hist[i] > 0:
+                        center = (edges[i] + edges[i+1]) / 2
+                        atoms.append((center, hist[i] / total))
+                atoms.append((float('nan'), nan_prob))
+                return Dist.from_atoms(atoms)
+        else:
+            # NaNを含まない場合（既存のロジック）
+            unique_vals = np.unique(samples)
+
+            # 離散的な値が少ない場合は点質量として扱う
+            if np.all(np.mod(unique_vals, 1) == 0) and len(unique_vals) <= bins // 2:
+                counts = [(v, np.sum(samples == v)) for v in unique_vals]
+                total = samples.size
+                atoms = [(float(v), c / total) for v, c in counts]
+                return Dist.from_atoms(atoms)
+
+            # 連続値の場合はヒストグラムで近似
+            hist, edges = np.histogram(samples, bins=bins, density=True)
+            centers = (edges[:-1] + edges[1:]) / 2
+            dx = edges[1] - edges[0]
+            dist = Dist(density={'x': centers, 'f': hist, 'dx': dx},
+                        support=[Interval(centers[0], centers[-1])])
+            dist.normalize()
+            return dist
 
 
 def sampled_distribution(sample_fn: Callable[[int], np.ndarray], n_samples: int = 1000,

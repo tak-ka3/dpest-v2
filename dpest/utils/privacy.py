@@ -82,36 +82,99 @@ def estimate_privacy_loss(P: Dist, Q: Dist) -> float:
 
 
 def epsilon_from_list(P_list: List[Dist], Q_list: List[Dist]) -> float:
-    """Compute privacy loss for lists of distributions."""
+    """Compute privacy loss for lists of distributions.
+
+    This function uses marginal composition (sum of individual epsilons).
+    For a more accurate estimate considering joint distribution, use
+    epsilon_from_list_joint() instead.
+    """
     return sum(epsilon_from_dist(P, Q) for P, Q in zip(P_list, Q_list))
+
+
+def epsilon_from_list_joint(P_list: List[Dist], Q_list: List[Dist], bins: int = 100) -> float:
+    """Compute privacy loss using joint distribution of output vectors.
+
+    This function is more accurate than epsilon_from_list() for algorithms
+    with dependencies between outputs (e.g., SVT), as it considers the
+    joint distribution rather than marginal distributions.
+
+    Args:
+        P_list: List of output distributions for dataset D
+        Q_list: List of output distributions for dataset D'
+        bins: Number of bins for histogram (if needed)
+
+    Returns:
+        Estimated epsilon using joint distribution
+    """
+    # Check if distributions have joint samples attached
+    if (len(P_list) > 0 and hasattr(P_list[0], '_joint_samples') and
+        len(Q_list) > 0 and hasattr(Q_list[0], '_joint_samples')):
+        # Use the saved joint samples
+        P_samples = P_list[0]._joint_samples
+        Q_samples = Q_list[0]._joint_samples
+        return epsilon_from_samples_matrix(P_samples, Q_samples, bins=bins)
+    else:
+        # Fallback to marginal composition
+        import warnings
+        warnings.warn(
+            "Joint samples not available, falling back to marginal composition. "
+            "For accurate joint distribution estimation, ensure the algorithm uses sampling mode.",
+            UserWarning
+        )
+        return epsilon_from_list(P_list, Q_list)
+
+
+def _value_mask(arr: np.ndarray, value: float) -> np.ndarray:
+    if isinstance(value, float) and math.isnan(value):
+        return np.isnan(arr)
+    return arr == value
 
 
 def epsilon_from_samples(P: np.ndarray, Q: np.ndarray, bins: int = 50) -> float:
     """Estimate ε from samples of two distributions."""
     unique = np.union1d(np.unique(P), np.unique(Q))
+    ratios: List[float] = []
+
     if len(unique) <= bins:
-        p_counts = np.array([np.mean(P == v) for v in unique])
-        q_counts = np.array([np.mean(Q == v) for v in unique])
-        ratios: List[float] = []
-        for p, q in zip(p_counts, q_counts):
+        for v in unique:
+            p_mask = _value_mask(P, v)
+            q_mask = _value_mask(Q, v)
+            p = np.mean(p_mask)
+            q = np.mean(q_mask)
             if p > 0 and q > 0:
                 ratios.append(p / q)
                 ratios.append(q / p)
         if ratios:
             return float(np.log(max(ratios)))
         return float("inf")
-    else:
-        hist_range = (min(P.min(), Q.min()), max(P.max(), Q.max()))
-        p_hist, _ = np.histogram(P, bins=bins, range=hist_range, density=True)
-        q_hist, _ = np.histogram(Q, bins=bins, range=hist_range, density=True)
-        ratios: List[float] = []
+
+    finite_P = P[~np.isnan(P)]
+    finite_Q = Q[~np.isnan(Q)]
+    p_nan = np.mean(np.isnan(P))
+    q_nan = np.mean(np.isnan(Q))
+
+    ratios: List[float] = []
+
+    if finite_P.size > 0 and finite_Q.size > 0:
+        hist_range = (min(finite_P.min(), finite_Q.min()), max(finite_P.max(), finite_Q.max()))
+        p_hist, _ = np.histogram(finite_P, bins=bins, range=hist_range, density=True)
+        q_hist, _ = np.histogram(finite_Q, bins=bins, range=hist_range, density=True)
         for p_val, q_val in zip(p_hist, q_hist):
             if p_val > 1e-12 and q_val > 1e-12:
                 ratios.append(p_val / q_val)
                 ratios.append(q_val / p_val)
-        if ratios:
-            return float(np.log(max(ratios)))
+    elif finite_P.size > 0 or finite_Q.size > 0:
+        # 片方のみ有限値を持つ場合、共有質量がないため無限大
         return float("inf")
+
+    if p_nan > 0 and q_nan > 0:
+        ratios.append(p_nan / q_nan)
+        ratios.append(q_nan / p_nan)
+    elif p_nan > 0 or q_nan > 0:
+        return float("inf")
+    if ratios:
+        return float(np.log(max(ratios)))
+    return float("inf")
 
 
 def epsilon_from_samples_matrix(P: np.ndarray, Q: np.ndarray, bins: int = 100) -> float:
@@ -130,13 +193,33 @@ def epsilon_from_samples_matrix(P: np.ndarray, Q: np.ndarray, bins: int = 100) -
         return epsilon_from_samples(P, Q, bins)
 
     combined = np.vstack([P, Q])
-    unique = np.unique(combined, axis=0)
+    has_nan = np.isnan(combined).any()
 
-    if unique.shape[0] <= bins:
-        p_counts = np.array([np.mean(np.all(P == u, axis=1)) for u in unique])
-        q_counts = np.array([np.mean(np.all(Q == u, axis=1)) for u in unique])
+    unique_rows: List[np.ndarray] = []
+    seen_patterns = set()
+    print("Finding unique rows in combined samples...")
+    for row in combined:
+        mask = np.isnan(row)
+        key = (tuple(mask.tolist()), tuple(np.where(mask, 0.0, row).tolist()))
+        if key not in seen_patterns:
+            seen_patterns.add(key)
+            unique_rows.append(row)
+
+    print("unique_rows found:", len(unique_rows))
+
+    if has_nan or len(unique_rows) <= bins:
         ratios: List[float] = []
-        for p_val, q_val in zip(p_counts, q_counts):
+        for row in unique_rows:
+            p_mask = np.all(
+                np.where(np.isnan(row), np.isnan(P), P == row),
+                axis=1,
+            )
+            q_mask = np.all(
+                np.where(np.isnan(row), np.isnan(Q), Q == row),
+                axis=1,
+            )
+            p_val = np.mean(p_mask)
+            q_val = np.mean(q_mask)
             if p_val > 0 and q_val > 0:
                 ratios.append(p_val / q_val)
                 ratios.append(q_val / p_val)

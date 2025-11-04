@@ -11,11 +11,15 @@ from .operations import (
     Max, Min, max_distribution, min_distribution,
     Argmax, argmax_distribution,
     Sampled, sampled_distribution,
+    compare_geq, MUX, mux, NAN, PAD,
 )
 from .engine import (Engine, compile, AlgorithmBuilder, Laplace_dist, Exponential_dist,
                      vector_argmax, vector_max, vector_min)
 
 __version__ = "0.1.0"
+
+# GEエイリアス (compare_geqの別名)
+GE = compare_geq
 
 __all__ = [
     # 中核クラス
@@ -28,6 +32,7 @@ __all__ = [
     'Argmax', 'argmax_distribution', 'vector_argmax',
     'Max', 'Min', 'max_distribution', 'min_distribution', 'vector_max', 'vector_min',
     'Sampled', 'sampled_distribution',
+    'GE', 'compare_geq', 'MUX', 'mux', 'NAN', 'PAD',
     # エンジン
     'Engine', 'compile', 'AlgorithmBuilder',
 ]

@@ -15,7 +15,7 @@ from ..core import Dist, Interval
 
 class Max:
     """Max演算: Z = max(X1, X2, ..., Xk)"""
-    
+
     @staticmethod
     def apply(distributions: List[Dist], joint_samples: Optional[np.ndarray] = None) -> Dist:
         """
@@ -50,15 +50,27 @@ class Max:
 
             if dependent:
                 samplers = [getattr(d, 'sampler', None) for d in distributions]
-                if any(s is None for s in samplers) or len({id(s) for s in samplers}) != 1:
-                    raise ValueError("Dependent inputs require joint samples or shared sampler")
-                base_sampler = samplers[0]
-                indices = [d.sampler_index or 0 for d in distributions]
-                samples = base_sampler(1000)
-                samples = np.asarray(samples)
-                if samples.ndim == 1:
-                    samples = samples.reshape(-1, 1)
-                joint_samples = np.column_stack([samples[:, idx] for idx in indices])
+                # 共通サンプラーがある場合はそれを使用
+                if not any(s is None for s in samplers) and len({id(s) for s in samplers}) == 1:
+                    base_sampler = samplers[0]
+                    indices = [d.sampler_index or 0 for d in distributions]
+                    samples = base_sampler(1000)
+                    samples = np.asarray(samples)
+                    if samples.ndim == 1:
+                        samples = samples.reshape(-1, 1)
+                    joint_samples = np.column_stack([samples[:, idx] for idx in indices])
+                else:
+                    # サンプラーがない、または異なるサンプラーの場合
+                    # needs_samplingフラグを設定してプレースホルダーを返す
+                    from ..core import Node
+                    node = Node(op='Max',
+                                inputs=[getattr(d, 'node', None) for d in distributions],
+                                dependencies=union_deps,
+                                needs_sampling=True)
+                    result = Dist(atoms=[(0.0, 1.0)],
+                                  dependencies=union_deps,
+                                  node=node)
+                    return result
 
         if joint_samples is not None:
             max_samples = np.max(joint_samples, axis=1)
