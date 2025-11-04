@@ -195,13 +195,14 @@ def epsilon_from_samples_matrix(P: np.ndarray, Q: np.ndarray, bins: int = 100) -
     combined = np.vstack([P, Q])
     has_nan = np.isnan(combined).any()
 
-    def rows_equal(a: np.ndarray, b: np.ndarray) -> bool:
-        return np.all((np.isnan(a) & np.isnan(b)) | (a == b))
-
     unique_rows: List[np.ndarray] = []
+    seen_patterns = set()
     print("Finding unique rows in combined samples...")
     for row in combined:
-        if not any(rows_equal(row, existing) for existing in unique_rows):
+        mask = np.isnan(row)
+        key = (tuple(mask.tolist()), tuple(np.where(mask, 0.0, row).tolist()))
+        if key not in seen_patterns:
+            seen_patterns.add(key)
             unique_rows.append(row)
 
     print("unique_rows found:", len(unique_rows))
