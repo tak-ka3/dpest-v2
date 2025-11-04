@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import sys
 
@@ -6,8 +7,8 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import math
 import numpy as np
 
-from privacy_loss_report import (
-    estimate_algorithm,
+from dpest.analysis import estimate_algorithm
+from dpest.algorithms import (
     noisy_hist1_dist,
     noisy_hist2_dist,
     report_noisy_max1_dist,
@@ -18,13 +19,6 @@ from privacy_loss_report import (
     laplace_parallel_dist,
     one_time_rappor_dist,
     rappor_dist,
-)
-from dpest.utils.input_patterns import generate_patterns
-from dpest.mechanisms.prefix_sum import PrefixSum
-from dpest.mechanisms.geometric import TruncatedGeometricMechanism
-from dpest.mechanisms.parallel import SVT34Parallel
-# 新しい分布ベースのSVT実装を使用
-from dpest.algorithms import (
     svt1_dist,
     svt2_dist,
     svt3_dist,
@@ -33,6 +27,27 @@ from dpest.algorithms import (
     svt6_dist,
     numerical_svt_dist,
 )
+from dpest.utils.input_patterns import generate_patterns
+from dpest.mechanisms.prefix_sum import PrefixSum
+from dpest.mechanisms.geometric import TruncatedGeometricMechanism
+from dpest.mechanisms.parallel import SVT34Parallel
+
+
+DEFAULT_CONFIG_PATH = os.path.join(
+    os.path.dirname(__file__),
+    "privacy_loss_single_config.json",
+)
+
+
+def load_config(path: str | None) -> dict:
+    config = {"n_samples": 100_000, "hist_bins": 100}
+    if path and os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        for key in ("n_samples", "hist_bins"):
+            if key in data:
+                config[key] = int(data[key])
+    return config
 
 
 INPUT_SIZES = {
@@ -82,7 +97,7 @@ IDEAL_EPS = {
 }
 
 
-def compute_epsilon(name: str) -> float:
+def compute_epsilon(name: str, *, n_samples: int, hist_bins: int) -> float:
     """Estimate privacy loss for a single algorithm."""
     if name not in INPUT_SIZES:
         raise ValueError(f"Unknown algorithm: {name}")
@@ -91,68 +106,144 @@ def compute_epsilon(name: str) -> float:
 
     if name == "NoisyHist1":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=noisy_hist1_dist)
+        return estimate_algorithm(
+            name, pairs, dist_func=noisy_hist1_dist, n_samples=n_samples, hist_bins=hist_bins
+        )
     if name == "NoisyHist2":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=noisy_hist2_dist)
+        return estimate_algorithm(
+            name, pairs, dist_func=noisy_hist2_dist, n_samples=n_samples, hist_bins=hist_bins
+        )
     if name == "ReportNoisyMax1":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=report_noisy_max1_dist)
+        return estimate_algorithm(
+            name,
+            pairs,
+            dist_func=report_noisy_max1_dist,
+            n_samples=n_samples,
+            hist_bins=hist_bins,
+        )
     if name == "ReportNoisyMax3":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=report_noisy_max3_dist)
+        return estimate_algorithm(
+            name,
+            pairs,
+            dist_func=report_noisy_max3_dist,
+            n_samples=n_samples,
+            hist_bins=hist_bins,
+        )
     if name == "LaplaceMechanism":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=laplace_vec_dist)
+        return estimate_algorithm(
+            name, pairs, dist_func=laplace_vec_dist, n_samples=n_samples, hist_bins=hist_bins
+        )
     if name == "LaplaceParallel":
         pairs = [generate_patterns(INPUT_SIZES["LaplaceMechanism"])["one_above"]]
         dist = lambda data, eps: laplace_parallel_dist(data, 0.005, INPUT_SIZES["LaplaceParallel"])
-        return estimate_algorithm(name, pairs, dist_func=dist)
+        return estimate_algorithm(
+            name, pairs, dist_func=dist, n_samples=n_samples, hist_bins=hist_bins
+        )
     if name == "ReportNoisyMax2":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=report_noisy_max2_dist)
+        return estimate_algorithm(
+            name,
+            pairs,
+            dist_func=report_noisy_max2_dist,
+            n_samples=n_samples,
+            hist_bins=hist_bins,
+        )
     if name == "ReportNoisyMax4":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=report_noisy_max4_dist)
+        return estimate_algorithm(
+            name,
+            pairs,
+            dist_func=report_noisy_max4_dist,
+            n_samples=n_samples,
+            hist_bins=hist_bins,
+        )
     if name == "SVT1":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=svt1_dist)
+        return estimate_algorithm(
+            name, pairs, dist_func=svt1_dist, n_samples=n_samples, hist_bins=hist_bins
+        )
     if name == "SVT2":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=svt2_dist)
+        return estimate_algorithm(
+            name, pairs, dist_func=svt2_dist, n_samples=n_samples, hist_bins=hist_bins
+        )
     if name == "SVT3":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=svt3_dist)
+        return estimate_algorithm(
+            name, pairs, dist_func=svt3_dist, n_samples=n_samples, hist_bins=hist_bins
+        )
     if name == "SVT4":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=svt4_dist)
+        return estimate_algorithm(
+            name, pairs, dist_func=svt4_dist, n_samples=n_samples, hist_bins=hist_bins
+        )
     if name == "SVT5":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=svt5_dist)
+        return estimate_algorithm(
+            name, pairs, dist_func=svt5_dist, n_samples=n_samples, hist_bins=hist_bins
+        )
     if name == "SVT6":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=svt6_dist)
+        return estimate_algorithm(
+            name, pairs, dist_func=svt6_dist, n_samples=n_samples, hist_bins=hist_bins
+        )
     if name == "SVT34Parallel":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, mechanism=SVT34Parallel(eps=0.1))
+        return estimate_algorithm(
+            name,
+            pairs,
+            mechanism=SVT34Parallel(eps=0.1),
+            n_samples=n_samples,
+            hist_bins=hist_bins,
+        )
     if name == "NumericalSVT":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=numerical_svt_dist)
+        return estimate_algorithm(
+            name,
+            pairs,
+            dist_func=numerical_svt_dist,
+            n_samples=n_samples,
+            hist_bins=hist_bins,
+        )
     if name == "PrefixSum":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, mechanism=PrefixSum(eps=0.1))
+        return estimate_algorithm(
+            name,
+            pairs,
+            mechanism=PrefixSum(eps=0.1),
+            n_samples=n_samples,
+            hist_bins=hist_bins,
+        )
     if name == "OneTimeRAPPOR":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=one_time_rappor_dist)
+        return estimate_algorithm(
+            name,
+            pairs,
+            dist_func=one_time_rappor_dist,
+            n_samples=n_samples,
+            hist_bins=hist_bins,
+        )
     if name == "RAPPOR":
         pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=rappor_dist)
+        return estimate_algorithm(
+            name,
+            pairs,
+            dist_func=rappor_dist,
+            n_samples=n_samples,
+            hist_bins=hist_bins,
+        )
     if name == "TruncatedGeometric":
         tg_pairs = [(np.array([2]), np.array([1])), (np.array([1]), np.array([0]))]
         return estimate_algorithm(
             name,
             tg_pairs,
             mechanism=TruncatedGeometricMechanism(eps=0.1, n=5),
+            n_samples=n_samples,
+            hist_bins=hist_bins,
         )
 
     raise ValueError(f"Unsupported algorithm: {name}")
@@ -163,9 +254,19 @@ def main():
         description="Estimate privacy loss for a single algorithm"
     )
     parser.add_argument("algorithm", help="Algorithm name")
+    parser.add_argument(
+        "--config",
+        default=DEFAULT_CONFIG_PATH,
+        help="JSON config path containing 'n_samples' and 'hist_bins'.",
+    )
     args = parser.parse_args()
 
-    eps = compute_epsilon(args.algorithm)
+    config = load_config(args.config)
+    eps = compute_epsilon(
+        args.algorithm,
+        n_samples=config["n_samples"],
+        hist_bins=config["hist_bins"],
+    )
     ideal = IDEAL_EPS.get(args.algorithm)
     size = INPUT_SIZES.get(args.algorithm)
     if ideal is not None:
