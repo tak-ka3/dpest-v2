@@ -6,6 +6,8 @@
 
 from dataclasses import dataclass
 from typing import Callable, Any, List, Union, Optional
+import numpy as np
+
 from .core import Dist
 from .noise import Laplace, Exponential, create_laplace_noise, create_exponential_noise
 from .operations import (
@@ -32,6 +34,12 @@ from .operations import (
 )
 
 
+@dataclass
+class FallbackResult:
+    value: Any
+    sampler: Optional[Callable[[Any, int], np.ndarray]] = None
+
+
 class Engine:
     """差分プライバシーε推定エンジンのメインクラス"""
 
@@ -51,6 +59,14 @@ class Engine:
             'Sampled': Sampled,
             'TruncatedGeometric': TruncatedGeometric,
         }
+        # サンプリングモードで使用するサンプル数
+        self.default_sampling_samples = 100
+
+    def set_default_sampling_samples(self, n_samples: int):
+        """サンプリングモードで使用するサンプル数を設定"""
+        if n_samples <= 0:
+            raise ValueError("n_samples must be positive")
+        self.default_sampling_samples = n_samples
 
     # アルゴリズムの関数から計算グラフを作る
     def _build_computation_graph(self, algo_func: Callable):
@@ -95,11 +111,15 @@ class Engine:
         node.needs_sampling = False
         return False
 
-    def _plan_execution(self, computation_graph: Callable, input_dist) -> "Engine.ExecutionPlan":
+    def _plan_execution(self, computation_graph: Callable, input_dist, raw_input) -> "Engine.ExecutionPlan":
         """計算グラフから出力分布の計算方法を決定する"""
 
         # 一度実行して計算グラフを構築し、依存関係を解析
         result = computation_graph(input_dist)
+        sampler = None
+        if isinstance(result, FallbackResult):
+            sampler = result.sampler
+            result = result.value
 
         # 結果のノードを解析してサンプリングが必要か判定
         if hasattr(result, 'node'):
@@ -116,7 +136,11 @@ class Engine:
         else:
             mode = 'analytic'
 
-        return self.ExecutionPlan(mode=mode, graph=computation_graph, options={'result': result})
+        return self.ExecutionPlan(
+            mode=mode,
+            graph=computation_graph,
+            options={'result': result, 'sampler': sampler, 'raw_input': raw_input},
+        )
 
     def _execute_algorithm(self, plan: "Engine.ExecutionPlan", input_dist):
         """実行計画に従ってアルゴリズムを実行し分布を得る"""
@@ -126,12 +150,20 @@ class Engine:
             import warnings
             warnings.warn("Sampling mode detected due to variable dependencies. Executing with Monte Carlo sampling.",
                           UserWarning)
-            return self._execute_sampling(plan.graph, input_dist, n_samples=100)
+            return self._execute_sampling(
+                plan.graph,
+                input_dist,
+                n_samples=self.default_sampling_samples,
+                sampler=(plan.options or {}).get('sampler') if plan.options else None,
+                raw_input=(plan.options or {}).get('raw_input') if plan.options else None,
+            )
         else:
             # 解析モード: 既に計算済みの結果を返す
             return plan.options.get('result')
 
-    def _execute_sampling(self, algo_func: Callable, input_dist, n_samples: int = 1000):
+    def _execute_sampling(self, algo_func: Callable, input_dist, n_samples: int = 1000,
+                          sampler: Optional[Callable[[Any, int], np.ndarray]] = None,
+                          raw_input: Any = None):
         """サンプリングベースでアルゴリズムを実行
 
         アルゴリズムをn_samples回実行して、結果から分布を構築します。
@@ -189,8 +221,10 @@ class Engine:
 
             return np.array(samples)
 
-        # サンプル配列を生成（1回のみ）
-        sample_array = sample_function(n_samples)
+        if sampler is not None and raw_input is not None:
+            sample_array = np.asarray(sampler(raw_input, n_samples))
+        else:
+            sample_array = sample_function(n_samples)
 
         # 既存のサンプル配列から分布を構築（重複実行を回避）
         result = Sampled.from_samples(sample_array, bins=100)
@@ -216,7 +250,7 @@ class Engine:
             input_dist = self._create_input_distribution(input_data)
 
             # 実行計画の作成とアルゴリズム実行
-            plan = self._plan_execution(computation_graph, input_dist)
+            plan = self._plan_execution(computation_graph, input_dist, input_data)
             output_dist = self._execute_algorithm(plan, input_dist)
 
             return output_dist
@@ -254,6 +288,11 @@ _default_engine = Engine()
 def compile(algo_func: Callable) -> Callable:
     """アルゴリズム関数をコンパイルして分布計算関数を返す"""
     return _default_engine.compile(algo_func)
+
+
+def set_sampling_samples(n_samples: int):
+    """グローバルエンジンのサンプリング回数を設定"""
+    _default_engine.set_default_sampling_samples(n_samples)
 
 
 # アルゴリズム記述用の便利クラス・関数

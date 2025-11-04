@@ -44,6 +44,8 @@ class Sampled:
         """
         samples = np.asarray(samples)
 
+        print(f"Constructing distribution from samples with shape {samples.shape}")
+
         if samples.ndim == 1:
             return Sampled._samples_to_dist(samples, bins)
         else:

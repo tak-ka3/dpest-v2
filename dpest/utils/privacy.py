@@ -124,32 +124,57 @@ def epsilon_from_list_joint(P_list: List[Dist], Q_list: List[Dist], bins: int = 
         return epsilon_from_list(P_list, Q_list)
 
 
+def _value_mask(arr: np.ndarray, value: float) -> np.ndarray:
+    if isinstance(value, float) and math.isnan(value):
+        return np.isnan(arr)
+    return arr == value
+
+
 def epsilon_from_samples(P: np.ndarray, Q: np.ndarray, bins: int = 50) -> float:
     """Estimate ε from samples of two distributions."""
     unique = np.union1d(np.unique(P), np.unique(Q))
+    ratios: List[float] = []
+
     if len(unique) <= bins:
-        p_counts = np.array([np.mean(P == v) for v in unique])
-        q_counts = np.array([np.mean(Q == v) for v in unique])
-        ratios: List[float] = []
-        for p, q in zip(p_counts, q_counts):
+        for v in unique:
+            p_mask = _value_mask(P, v)
+            q_mask = _value_mask(Q, v)
+            p = np.mean(p_mask)
+            q = np.mean(q_mask)
             if p > 0 and q > 0:
                 ratios.append(p / q)
                 ratios.append(q / p)
         if ratios:
             return float(np.log(max(ratios)))
         return float("inf")
-    else:
-        hist_range = (min(P.min(), Q.min()), max(P.max(), Q.max()))
-        p_hist, _ = np.histogram(P, bins=bins, range=hist_range, density=True)
-        q_hist, _ = np.histogram(Q, bins=bins, range=hist_range, density=True)
-        ratios: List[float] = []
+
+    finite_P = P[~np.isnan(P)]
+    finite_Q = Q[~np.isnan(Q)]
+    p_nan = np.mean(np.isnan(P))
+    q_nan = np.mean(np.isnan(Q))
+
+    ratios: List[float] = []
+
+    if finite_P.size > 0 and finite_Q.size > 0:
+        hist_range = (min(finite_P.min(), finite_Q.min()), max(finite_P.max(), finite_Q.max()))
+        p_hist, _ = np.histogram(finite_P, bins=bins, range=hist_range, density=True)
+        q_hist, _ = np.histogram(finite_Q, bins=bins, range=hist_range, density=True)
         for p_val, q_val in zip(p_hist, q_hist):
             if p_val > 1e-12 and q_val > 1e-12:
                 ratios.append(p_val / q_val)
                 ratios.append(q_val / p_val)
-        if ratios:
-            return float(np.log(max(ratios)))
+    elif finite_P.size > 0 or finite_Q.size > 0:
+        # 片方のみ有限値を持つ場合、共有質量がないため無限大
         return float("inf")
+
+    if p_nan > 0 and q_nan > 0:
+        ratios.append(p_nan / q_nan)
+        ratios.append(q_nan / p_nan)
+    elif p_nan > 0 or q_nan > 0:
+        return float("inf")
+    if ratios:
+        return float(np.log(max(ratios)))
+    return float("inf")
 
 
 def epsilon_from_samples_matrix(P: np.ndarray, Q: np.ndarray, bins: int = 100) -> float:
@@ -168,13 +193,32 @@ def epsilon_from_samples_matrix(P: np.ndarray, Q: np.ndarray, bins: int = 100) -
         return epsilon_from_samples(P, Q, bins)
 
     combined = np.vstack([P, Q])
-    unique = np.unique(combined, axis=0)
+    has_nan = np.isnan(combined).any()
 
-    if unique.shape[0] <= bins:
-        p_counts = np.array([np.mean(np.all(P == u, axis=1)) for u in unique])
-        q_counts = np.array([np.mean(np.all(Q == u, axis=1)) for u in unique])
+    def rows_equal(a: np.ndarray, b: np.ndarray) -> bool:
+        return np.all((np.isnan(a) & np.isnan(b)) | (a == b))
+
+    unique_rows: List[np.ndarray] = []
+    print("Finding unique rows in combined samples...")
+    for row in combined:
+        if not any(rows_equal(row, existing) for existing in unique_rows):
+            unique_rows.append(row)
+
+    print("unique_rows found:", len(unique_rows))
+
+    if has_nan or len(unique_rows) <= bins:
         ratios: List[float] = []
-        for p_val, q_val in zip(p_counts, q_counts):
+        for row in unique_rows:
+            p_mask = np.all(
+                np.where(np.isnan(row), np.isnan(P), P == row),
+                axis=1,
+            )
+            q_mask = np.all(
+                np.where(np.isnan(row), np.isnan(Q), Q == row),
+                axis=1,
+            )
+            p_val = np.mean(p_mask)
+            q_val = np.mean(q_mask)
             if p_val > 0 and q_val > 0:
                 ratios.append(p_val / q_val)
                 ratios.append(q_val / p_val)
