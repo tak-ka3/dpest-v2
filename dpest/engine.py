@@ -10,7 +10,21 @@ import numpy as np
 
 from .core import Dist
 from .noise import Laplace, Exponential, create_laplace_noise, create_exponential_noise
-from .operations import Add, Affine, Max, Min, Argmax, PrefixSum, Sampled, Compare, Condition, TruncatedGeometric
+from .operations import (
+    Add,
+    Affine,
+    Max,
+    Min,
+    Argmax,
+    PrefixSum,
+    Sampled,
+    Compare,
+    Condition,
+    TruncatedGeometric,
+    max_distribution,
+    min_distribution,
+    argmax_distribution,
+)
 
 
 @dataclass
