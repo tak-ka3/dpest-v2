@@ -4,13 +4,13 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from dpest.core import Dist
-from dpest.operations import add_distributions, max_distribution, min_distribution, argmax_distribution
+from dpest.operations import add, max_distribution, min_distribution, argmax_distribution
 
 
 def test_add_distribution():
     x = Dist.deterministic(1.0)
     y = Dist.deterministic(2.0)
-    result = add_distributions(x, y)
+    result = add(x, y)
     assert result.atoms == [(3.0, 1.0)]
 
 

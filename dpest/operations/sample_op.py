@@ -43,14 +43,10 @@ class Sampled:
             Dist または Dist のリスト。
         """
         samples = np.asarray(samples)
-
-        print(f"Constructing distribution from samples with shape {samples.shape}")
-
         if samples.ndim == 1:
             return Sampled._samples_to_dist(samples, bins)
-        else:
-            return [Sampled._samples_to_dist(samples[:, i], bins)
-                    for i in range(samples.shape[1])]
+        return [Sampled._samples_to_dist(samples[:, i], bins)
+                for i in range(samples.shape[1])]
 
     @staticmethod
     def _samples_to_dist(samples: np.ndarray, bins: int) -> Dist:

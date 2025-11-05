@@ -12,7 +12,7 @@ SVT3の特徴: TRUEの時にノイズ付きクエリ値を出力、FALSEの時�
 from typing import List
 from ..core import Dist
 from ..noise import Laplace
-from ..operations import Add, Affine, mux, compare_geq as GE
+from ..operations import add, affine, mux, geq
 
 # センチネル値
 NAN = float('nan')
@@ -39,7 +39,7 @@ def svt3(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int = 2) -> L
 
     # 閾値にノイズを追加: T = t + Laplace(b=1/eps1)
     lap_T = Laplace(b=1/eps1).to_dist()
-    T = Affine.apply(lap_T, 1.0, t)
+    T = affine(lap_T, 1.0, t)
 
     # カウンタと打ち切りフラグ
     count = Dist.deterministic(0.0)
@@ -49,10 +49,10 @@ def svt3(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int = 2) -> L
     for Q in queries:
         # クエリにノイズを追加
         lap_Q = Laplace(b=c/eps2).to_dist()
-        noisy_Q = Add.apply(Q, lap_Q)
+        noisy_Q = add(Q, lap_Q)
 
         # 閾値と比較
-        over = GE(noisy_Q, T)
+        over = geq(noisy_Q, T)
 
         # TRUEならノイズ付きクエリ値、FALSEなら-1000.0
         output_val = mux(over, noisy_Q, FALSE_SENTINEL)
@@ -63,7 +63,7 @@ def svt3(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int = 2) -> L
 
         # カウンタを更新（打ち切り後は加算しない）
         inc = mux(broken, 0, over)
-        count = Add.apply(count, inc)
-        broken = GE(count, c)
+        count = add(count, inc)
+        broken = geq(count, c)
 
     return result

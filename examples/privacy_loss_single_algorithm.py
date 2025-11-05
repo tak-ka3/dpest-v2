@@ -6,6 +6,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import math
 import numpy as np
+from typing import Any, Callable, Dict, List, Tuple
 
 from dpest.analysis import estimate_algorithm
 from dpest.algorithms import (
@@ -97,156 +98,111 @@ IDEAL_EPS = {
 }
 
 
+PairList = List[Tuple[np.ndarray, np.ndarray]]
+AlgorithmHandler = Callable[[str, int, int, int], float]
+
+
+def _default_pairs(n: int) -> PairList:
+    return list(generate_patterns(n).values())
+
+
+def _make_dist_handler(
+    dist_func: Callable[[np.ndarray, float], Any],
+    *,
+    pairs_factory: Callable[[int], PairList] = _default_pairs,
+) -> AlgorithmHandler:
+    def handler(name: str, n: int, n_samples: int, hist_bins: int) -> float:
+        pairs = pairs_factory(n)
+        return estimate_algorithm(
+            name,
+            pairs,
+            dist_func=dist_func,
+            n_samples=n_samples,
+            hist_bins=hist_bins,
+        )
+
+    return handler
+
+
+def _make_mechanism_handler(
+    mechanism_factory: Callable[[], Any],
+    *,
+    pairs_factory: Callable[[int], PairList] = _default_pairs,
+) -> AlgorithmHandler:
+    def handler(name: str, n: int, n_samples: int, hist_bins: int) -> float:
+        pairs = pairs_factory(n)
+        mechanism = mechanism_factory()
+        return estimate_algorithm(
+            name,
+            pairs,
+            mechanism=mechanism,
+            n_samples=n_samples,
+            hist_bins=hist_bins,
+        )
+
+    return handler
+
+
+def _laplace_parallel_pairs(_: int) -> PairList:
+    base_patterns = generate_patterns(INPUT_SIZES["LaplaceMechanism"])
+    return [base_patterns["one_above"]]
+
+
+def _laplace_parallel_dist(
+    data: np.ndarray, eps: float
+):  # pragma: no cover - thin wrapper
+    return laplace_parallel_dist(data, 0.005, INPUT_SIZES["LaplaceParallel"])
+
+
+_TRUNCATED_GEOMETRIC_PAIRS: PairList = [
+    (np.array([2]), np.array([1])),
+    (np.array([1]), np.array([0])),
+]
+
+
+def _truncated_pairs(_: int) -> PairList:
+    return [(pair[0].copy(), pair[1].copy()) for pair in _TRUNCATED_GEOMETRIC_PAIRS]
+
+
+ALGORITHM_HANDLERS: Dict[str, AlgorithmHandler] = {
+    "NoisyHist1": _make_dist_handler(noisy_hist1_dist),
+    "NoisyHist2": _make_dist_handler(noisy_hist2_dist),
+    "ReportNoisyMax1": _make_dist_handler(report_noisy_max1_dist),
+    "ReportNoisyMax2": _make_dist_handler(report_noisy_max2_dist),
+    "ReportNoisyMax3": _make_dist_handler(report_noisy_max3_dist),
+    "ReportNoisyMax4": _make_dist_handler(report_noisy_max4_dist),
+    "LaplaceMechanism": _make_dist_handler(laplace_vec_dist),
+    "LaplaceParallel": _make_dist_handler(
+        _laplace_parallel_dist, pairs_factory=_laplace_parallel_pairs
+    ),
+    "SVT1": _make_dist_handler(svt1_dist),
+    "SVT2": _make_dist_handler(svt2_dist),
+    "SVT3": _make_dist_handler(svt3_dist),
+    "SVT4": _make_dist_handler(svt4_dist),
+    "SVT5": _make_dist_handler(svt5_dist),
+    "SVT6": _make_dist_handler(svt6_dist),
+    "SVT34Parallel": _make_mechanism_handler(lambda: SVT34Parallel(eps=0.1)),
+    "NumericalSVT": _make_dist_handler(numerical_svt_dist),
+    "PrefixSum": _make_mechanism_handler(lambda: PrefixSum(eps=0.1)),
+    "OneTimeRAPPOR": _make_dist_handler(one_time_rappor_dist),
+    "RAPPOR": _make_dist_handler(rappor_dist),
+    "TruncatedGeometric": _make_mechanism_handler(
+        lambda: TruncatedGeometricMechanism(eps=0.1, n=5),
+        pairs_factory=_truncated_pairs,
+    ),
+}
+
+
 def compute_epsilon(name: str, *, n_samples: int, hist_bins: int) -> float:
     """Estimate privacy loss for a single algorithm."""
     if name not in INPUT_SIZES:
         raise ValueError(f"Unknown algorithm: {name}")
 
-    n = INPUT_SIZES[name]
+    handler = ALGORITHM_HANDLERS.get(name)
+    if handler is None:
+        raise ValueError(f"Unsupported algorithm: {name}")
 
-    if name == "NoisyHist1":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(
-            name, pairs, dist_func=noisy_hist1_dist, n_samples=n_samples, hist_bins=hist_bins
-        )
-    if name == "NoisyHist2":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(
-            name, pairs, dist_func=noisy_hist2_dist, n_samples=n_samples, hist_bins=hist_bins
-        )
-    if name == "ReportNoisyMax1":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(
-            name,
-            pairs,
-            dist_func=report_noisy_max1_dist,
-            n_samples=n_samples,
-            hist_bins=hist_bins,
-        )
-    if name == "ReportNoisyMax3":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(
-            name,
-            pairs,
-            dist_func=report_noisy_max3_dist,
-            n_samples=n_samples,
-            hist_bins=hist_bins,
-        )
-    if name == "LaplaceMechanism":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(
-            name, pairs, dist_func=laplace_vec_dist, n_samples=n_samples, hist_bins=hist_bins
-        )
-    if name == "LaplaceParallel":
-        pairs = [generate_patterns(INPUT_SIZES["LaplaceMechanism"])["one_above"]]
-        dist = lambda data, eps: laplace_parallel_dist(data, 0.005, INPUT_SIZES["LaplaceParallel"])
-        return estimate_algorithm(
-            name, pairs, dist_func=dist, n_samples=n_samples, hist_bins=hist_bins
-        )
-    if name == "ReportNoisyMax2":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(
-            name,
-            pairs,
-            dist_func=report_noisy_max2_dist,
-            n_samples=n_samples,
-            hist_bins=hist_bins,
-        )
-    if name == "ReportNoisyMax4":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(
-            name,
-            pairs,
-            dist_func=report_noisy_max4_dist,
-            n_samples=n_samples,
-            hist_bins=hist_bins,
-        )
-    if name == "SVT1":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(
-            name, pairs, dist_func=svt1_dist, n_samples=n_samples, hist_bins=hist_bins
-        )
-    if name == "SVT2":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(
-            name, pairs, dist_func=svt2_dist, n_samples=n_samples, hist_bins=hist_bins
-        )
-    if name == "SVT3":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(
-            name, pairs, dist_func=svt3_dist, n_samples=n_samples, hist_bins=hist_bins
-        )
-    if name == "SVT4":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(
-            name, pairs, dist_func=svt4_dist, n_samples=n_samples, hist_bins=hist_bins
-        )
-    if name == "SVT5":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(
-            name, pairs, dist_func=svt5_dist, n_samples=n_samples, hist_bins=hist_bins
-        )
-    if name == "SVT6":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(
-            name, pairs, dist_func=svt6_dist, n_samples=n_samples, hist_bins=hist_bins
-        )
-    if name == "SVT34Parallel":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(
-            name,
-            pairs,
-            mechanism=SVT34Parallel(eps=0.1),
-            n_samples=n_samples,
-            hist_bins=hist_bins,
-        )
-    if name == "NumericalSVT":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(
-            name,
-            pairs,
-            dist_func=numerical_svt_dist,
-            n_samples=n_samples,
-            hist_bins=hist_bins,
-        )
-    if name == "PrefixSum":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(
-            name,
-            pairs,
-            mechanism=PrefixSum(eps=0.1),
-            n_samples=n_samples,
-            hist_bins=hist_bins,
-        )
-    if name == "OneTimeRAPPOR":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(
-            name,
-            pairs,
-            dist_func=one_time_rappor_dist,
-            n_samples=n_samples,
-            hist_bins=hist_bins,
-        )
-    if name == "RAPPOR":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(
-            name,
-            pairs,
-            dist_func=rappor_dist,
-            n_samples=n_samples,
-            hist_bins=hist_bins,
-        )
-    if name == "TruncatedGeometric":
-        tg_pairs = [(np.array([2]), np.array([1])), (np.array([1]), np.array([0]))]
-        return estimate_algorithm(
-            name,
-            tg_pairs,
-            mechanism=TruncatedGeometricMechanism(eps=0.1, n=5),
-            n_samples=n_samples,
-            hist_bins=hist_bins,
-        )
-
-    raise ValueError(f"Unsupported algorithm: {name}")
+    return handler(name, INPUT_SIZES[name], n_samples, hist_bins)
 
 
 def main():

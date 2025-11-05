@@ -12,7 +12,7 @@ SVT2の特徴: 閾値を各TRUEの後に再サンプリング
 from typing import List
 from ..core import Dist
 from ..noise import Laplace
-from ..operations import Add, Affine, mux, compare_geq as GE
+from ..operations import add, affine, mux, geq
 
 # NANセンチネル値
 NAN = float('nan')
@@ -38,7 +38,7 @@ def svt2(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int = 2) -> L
 
     # 初期閾値にノイズを追加: T = t + Laplace(b=c/eps1)
     lap_T = Laplace(b=c/eps1).to_dist()
-    T = Affine.apply(lap_T, 1.0, t)
+    T = affine(lap_T, 1.0, t)
 
     # カウンタと打ち切りフラグ
     count = Dist.deterministic(0.0)
@@ -48,10 +48,10 @@ def svt2(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int = 2) -> L
     for Q in queries:
         # クエリにノイズを追加
         lap_Q = Laplace(b=2*c/eps2).to_dist()
-        noisy_Q = Add.apply(Q, lap_Q)
+        noisy_Q = add(Q, lap_Q)
 
         # 閾値と比較
-        over = GE(noisy_Q, T)
+        over = geq(noisy_Q, T)
 
         # 打ち切り後はNANを出力
         out_i = mux(broken, NAN, over)
@@ -60,13 +60,13 @@ def svt2(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int = 2) -> L
         # TRUEの時に閾値を再サンプリング
         # 新しい閾値ノイズを生成
         new_lap_T = Laplace(b=c/eps1).to_dist()
-        new_T = Affine.apply(new_lap_T, 1.0, t)
+        new_T = affine(new_lap_T, 1.0, t)
         # overが1（TRUE）の時だけ新しい閾値を使用
         T = mux(over, new_T, T)
 
         # カウンタを更新（打ち切り後は加算しない）
         inc = mux(broken, 0, over)
-        count = Add.apply(count, inc)
-        broken = GE(count, c)
+        count = add(count, inc)
+        broken = geq(count, c)
 
     return result

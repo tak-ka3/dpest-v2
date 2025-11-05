@@ -12,7 +12,7 @@ import numpy as np
 from dpest.core import Dist
 from dpest.operations import (
     max_distribution, min_distribution, argmax_distribution,
-    add_distributions, affine_transform,
+    add, affine,
     prefix_sum_distributions, sampled_distribution
 )
 from dpest.noise import create_laplace_noise, Laplace
@@ -117,15 +117,15 @@ def test_mixed_operations():
     print(f"  ラプラス分布: b=1.0")
 
     # 加法: 5 + Lap(1)
-    add_result = add_distributions(det_dist, lap_dist)
-    add_result_prime = add_distributions(Dist.deterministic(6.0), lap_dist)
+    add_result = add(det_dist, lap_dist)
+    add_result_prime = add(Dist.deterministic(6.0), lap_dist)
     print(f"加法結果: 格子点数={len(add_result.density['x'])}, 総質量={add_result.total_mass():.6f}")
     eps_add = estimate_privacy_loss(add_result, add_result_prime)
     print(f"加法の推定ε: {eps_add:.3f}")
 
     # アフィン変換: 2*X + 3
-    affine_result = affine_transform(lap_dist, a=2.0, b=3.0)
-    affine_result_prime = affine_transform(lap_dist, a=2.0, b=4.0)
+    affine_result = affine(lap_dist, a=2.0, b=3.0)
+    affine_result_prime = affine(lap_dist, a=2.0, b=4.0)
     print(f"アフィン変換結果: 格子点数={len(affine_result.density['x'])}, 総質量={affine_result.total_mass():.6f}")
     eps_affine = estimate_privacy_loss(affine_result, affine_result_prime)
     print(f"アフィン変換の推定ε: {eps_affine:.3f}")
@@ -166,8 +166,8 @@ def test_dependent_add_operation():
     cov2 = [[1.0, 0.5], [0.5, 1.0]]
     samples1 = np.random.multivariate_normal([0.0, 0.0], cov1, size=2000)
     samples2 = np.random.multivariate_normal([0.0, 0.0], cov2, size=2000)
-    result1 = add_distributions(Dist.deterministic(0.0), Dist.deterministic(0.0), joint_samples=samples1)
-    result2 = add_distributions(Dist.deterministic(0.0), Dist.deterministic(0.0), joint_samples=samples2)
+    result1 = add(Dist.deterministic(0.0), Dist.deterministic(0.0), joint_samples=samples1)
+    result2 = add(Dist.deterministic(0.0), Dist.deterministic(0.0), joint_samples=samples2)
     mean1 = np.sum(result1.density['x'] * result1.density['f'] * result1.density['dx'])
     mean2 = np.sum(result2.density['x'] * result2.density['f'] * result2.density['dx'])
     print(f"  共分散0.8の平均: {mean1:.3f}")
@@ -202,8 +202,8 @@ def test_noisy_argmax_vs_noisy_max():
     noisy_dists = []
     noisy_dists_prime = []
     for x_dist, x_dist_p, noise_dist in zip(input_dists, input_dists_prime, noise_dists):
-        noisy_dists.append(add_distributions(x_dist, noise_dist))
-        noisy_dists_prime.append(add_distributions(x_dist_p, noise_dist))
+        noisy_dists.append(add(x_dist, noise_dist))
+        noisy_dists_prime.append(add(x_dist_p, noise_dist))
 
     # Argmax計算
     argmax_result = argmax_distribution(noisy_dists)
@@ -286,4 +286,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

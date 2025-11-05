@@ -7,19 +7,19 @@
 from .core import Dist, Interval
 from .noise import Laplace, Exponential, create_laplace_noise, create_exponential_noise
 from .operations import (
-    Add, Affine, add_distributions, affine_transform,
+    Add, Affine, add, affine,
     Max, Min, max_distribution, min_distribution,
     Argmax, argmax_distribution,
     Sampled, sampled_distribution,
-    compare_geq, MUX, mux, NAN, PAD,
+    geq, MUX, mux, NAN, PAD,
 )
 from .engine import (Engine, compile, AlgorithmBuilder, Laplace_dist, Exponential_dist,
                      vector_argmax, vector_max, vector_min)
 
 __version__ = "0.1.0"
 
-# GEエイリアス (compare_geqの別名)
-GE = compare_geq
+# GEエイリアス (geqの別名)
+GE = geq
 
 __all__ = [
     # 中核クラス
@@ -28,11 +28,11 @@ __all__ = [
     'Laplace', 'Exponential', 'create_laplace_noise', 'create_exponential_noise',
     'Laplace_dist', 'Exponential_dist',
     # 演算
-    'Add', 'Affine', 'add_distributions', 'affine_transform',
+    'Add', 'Affine', 'add', 'affine',
     'Argmax', 'argmax_distribution', 'vector_argmax',
     'Max', 'Min', 'max_distribution', 'min_distribution', 'vector_max', 'vector_min',
     'Sampled', 'sampled_distribution',
-    'GE', 'compare_geq', 'MUX', 'mux', 'NAN', 'PAD',
+    'GE', 'geq', 'MUX', 'mux', 'NAN', 'PAD',
     # エンジン
     'Engine', 'compile', 'AlgorithmBuilder',
 ]

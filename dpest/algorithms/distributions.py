@@ -14,7 +14,7 @@ import numpy as np
 from ..core import Dist
 from ..engine import AlgorithmBuilder, vector_argmax, vector_max
 from ..noise import create_exponential_noise, create_laplace_noise
-from ..operations import Condition, add_distributions, compare_geq
+from ..operations import Condition, add
 
 
 def noisy_hist1_dist(a: np.ndarray, eps: float) -> List[Dist]:
@@ -66,7 +66,7 @@ def laplace_vec_dist(a: np.ndarray, eps: float) -> List[Dist]:
 def laplace_parallel_dist(a: np.ndarray, eps_each: float, n_parallel: int) -> List[Dist]:
     x_dist = Dist.deterministic(float(a.item(0)))
     noise_list = create_laplace_noise(b=1 / eps_each, size=n_parallel)
-    return [add_distributions(x_dist, n) for n in noise_list]
+    return [add(x_dist, n) for n in noise_list]
 
 
 def one_time_rappor_dist(

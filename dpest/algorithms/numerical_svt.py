@@ -12,7 +12,7 @@ NumericalSVTの特徴: TRUEの時にノイズ付きクエリ値を出力
 from typing import List
 from ..core import Dist
 from ..noise import Laplace
-from ..operations import Add, Affine, mux, compare_geq as GE
+from ..operations import add, affine, mux, geq
 
 # センチネル値
 NAN = float('nan')
@@ -34,7 +34,7 @@ def numerical_svt(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int 
     """
     # 閾値にノイズを追加: T = t + Laplace(b=3/eps)
     lap_rho1 = Laplace(b=3/eps).to_dist()
-    T = Affine.apply(lap_rho1, 1.0, t)
+    T = affine(lap_rho1, 1.0, t)
 
     # カウンタと打ち切りフラグ
     count = Dist.deterministic(0.0)
@@ -44,14 +44,14 @@ def numerical_svt(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int 
     for Q in queries:
         # 比較用のノイズ: rho2
         lap_rho2 = Laplace(b=6*c/eps).to_dist()
-        noisy_Q_cmp = Add.apply(Q, lap_rho2)
+        noisy_Q_cmp = add(Q, lap_rho2)
 
         # 閾値と比較
-        over = GE(noisy_Q_cmp, T)
+        over = geq(noisy_Q_cmp, T)
 
         # 出力用のノイズ: rho3
         lap_rho3 = Laplace(b=3*c/eps).to_dist()
-        noisy_Q_out = Add.apply(Q, lap_rho3)
+        noisy_Q_out = add(Q, lap_rho3)
 
         # TRUEならノイズ付きクエリ値、FALSEなら0.0
         output_val = mux(over, noisy_Q_out, 0.0)
@@ -62,7 +62,7 @@ def numerical_svt(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int 
 
         # カウンタを更新（打ち切り後は加算しない）
         inc = mux(broken, 0, over)
-        count = Add.apply(count, inc)
-        broken = GE(count, c)
+        count = add(count, inc)
+        broken = geq(count, c)
 
     return result

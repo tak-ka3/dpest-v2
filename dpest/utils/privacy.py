@@ -197,15 +197,12 @@ def epsilon_from_samples_matrix(P: np.ndarray, Q: np.ndarray, bins: int = 100) -
 
     unique_rows: List[np.ndarray] = []
     seen_patterns = set()
-    print("Finding unique rows in combined samples...")
     for row in combined:
         mask = np.isnan(row)
         key = (tuple(mask.tolist()), tuple(np.where(mask, 0.0, row).tolist()))
         if key not in seen_patterns:
             seen_patterns.add(key)
             unique_rows.append(row)
-
-    print("unique_rows found:", len(unique_rows))
 
     if has_nan or len(unique_rows) <= bins:
         ratios: List[float] = []
