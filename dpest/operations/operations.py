@@ -264,9 +264,9 @@ class Affine:
                     dependencies=x_dist.dependencies)
 
 
-def add_distributions(x_dist: Dist, y_dist: Union[Dist, List[Dist]],
-                     joint_samples: Optional[np.ndarray] = None,
-                     n_samples: int = 1000) -> Union[Dist, List[Dist]]:
+def add(x_dist: Dist, y_dist: Union[Dist, List[Dist]],
+        joint_samples: Optional[np.ndarray] = None,
+        n_samples: int = 1000) -> Union[Dist, List[Dist]]:
     """便利関数：分布の加法"""
     if isinstance(y_dist, list):
         if joint_samples is not None:
@@ -276,6 +276,6 @@ def add_distributions(x_dist: Dist, y_dist: Union[Dist, List[Dist]],
         return Add.apply(x_dist, y_dist, joint_samples=joint_samples, n_samples=n_samples)
 
 
-def affine_transform(x_dist: Dist, a: float, b: float = 0.0) -> Dist:
+def affine(x_dist: Dist, a: float, b: float = 0.0) -> Dist:
     """便利関数：アフィン変換"""
     return Affine.apply(x_dist, a, b)

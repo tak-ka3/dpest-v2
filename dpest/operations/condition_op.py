@@ -140,7 +140,7 @@ class Condition:
         return result
 
 
-def compare_geq(x_dist: Dist, y: Union[Dist, float]) -> Dist:
+def geq(x_dist: Dist, y: Union[Dist, float]) -> Dist:
     """ ``Compare.geq`` を呼び出すための簡易関数。"""
     return Compare.geq(x_dist, y)
 
