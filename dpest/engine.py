@@ -10,7 +10,21 @@ import numpy as np
 
 from .core import Dist
 from .noise import Laplace, Exponential, create_laplace_noise, create_exponential_noise
-from .operations import Add, Affine, Max, Min, Argmax, PrefixSum, Sampled, Compare, Condition, TruncatedGeometric
+from .operations import (
+    Add,
+    Affine,
+    Max,
+    Min,
+    Argmax,
+    PrefixSum,
+    Sampled,
+    Compare,
+    Condition,
+    TruncatedGeometric,
+    max_distribution,
+    min_distribution,
+    argmax_distribution,
+)
 
 
 @dataclass
@@ -151,59 +165,68 @@ class Engine:
         import numpy as np
         from .operations import Sampled
 
+        print("Executing algorithm in sampling mode...")
+
         def sample_function(n):
             """アルゴリズムをn回実行してサンプルを生成"""
-            samples = []
-            for _ in range(n):
-                # アルゴリズムを1回実行
-                # 各確率変数は内部的にサンプリングされる
+            def realize(value, cache):
+                """
+                確率変数を実現値に変換する。
+
+                重要: cacheを使って、同じ確率変数は同じサンプル値を返すようにする。
+                これにより、SVT1のような状態依存アルゴリズムでも正しく動作する。
+                """
+                if isinstance(value, Dist):
+                    return value._sample(cache)
+                if isinstance(value, list):
+                    # リストの各要素を同じcacheでサンプリング
+                    # これにより、要素間の依存関係が保持される
+                    return [realize(v, cache) for v in value]
+                return float(value)
+
+            # 最適化: 出力形状を事前に推定してnumpy配列を事前確保
+            # 最初のサンプルで形状を取得
+            cache = {}
+            result = algo_func(input_dist)
+            first_sample = realize(result, cache)
+
+            # 配列の形状を決定
+            if isinstance(first_sample, (list, np.ndarray)):
+                sample_shape = (n, len(first_sample))
+                samples = np.empty(sample_shape)
+                samples[0] = first_sample
+                start_idx = 1
+            else:
+                samples = np.empty(n)
+                samples[0] = first_sample
+                start_idx = 1
+
+            # 進捗表示の頻度を制御
+            show_every = max(1, n // 10) if n > 20 else n
+
+            for i in range(start_idx, n):
+                # 重要: 各イテレーションでアルゴリズムを再実行し、
+                # その場でサンプリングを実行する。
+                # これにより、SVT1のような状態依存アルゴリズムでも
+                # 正しく動作する（各イテレーション内で状態が共有される）
+                cache = {}
+
+                # アルゴリズムを実行して結果（Distまたは List[Dist]）を取得
                 result = algo_func(input_dist)
 
-                # 結果を数値に変換
-                def sample_from_dist(d):
-                    """Distから1つのサンプルを取得"""
-                    if d.atoms:
-                        # atomsから確率的に選択
-                        values = [v for v, _ in d.atoms]
-                        weights = [w for _, w in d.atoms]
-                        # 重みを正規化
-                        total = sum(weights)
-                        if total > 0:
-                            weights = [w/total for w in weights]
-                        return np.random.choice(values, p=weights)
-                    elif hasattr(d, 'sampler') and d.sampler is not None:
-                        # サンプラーを使用
-                        try:
-                            sample = d.sample(1)
-                            if hasattr(sample, '__len__'):
-                                return sample[0]
-                            return sample
-                        except:
-                            return 0.0
-                    else:
-                        return 0.0
+                # 結果をサンプリング
+                # 重要: リストの場合、同じcacheを使って全要素を一度にサンプリング
+                sample_val = realize(result, cache)
+                samples[i] = sample_val
 
-                if isinstance(result, Dist):
-                    sample_val = sample_from_dist(result)
-                elif isinstance(result, list):
-                    # リストの場合は各要素をサンプリング
-                    sample_val = []
-                    for r in result:
-                        if isinstance(r, Dist):
-                            sample_val.append(sample_from_dist(r))
-                        else:
-                            sample_val.append(float(r))
-                else:
-                    sample_val = float(result)
-
-                samples.append(sample_val)
-
-            return np.array(samples)
+            return samples
 
         if sampler is not None and raw_input is not None:
             sample_array = np.asarray(sampler(raw_input, n_samples))
         else:
+            print("Generating samples by executing the algorithm...")
             sample_array = sample_function(n_samples)
+        print(f"Generated sample array with shape {sample_array.shape}")
 
         # 既存のサンプル配列から分布を構築（重複実行を回避）
         result = Sampled.from_samples(sample_array, bins=100)
