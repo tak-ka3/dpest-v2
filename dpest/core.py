@@ -54,13 +54,13 @@ class Node:
 
 class Dist:
     """確率分布の表現
-    
+
     atoms: 点質量（アトム）のリスト [(value, weight), ...]
     density: 連続密度の格子近似 {'x': grid_x, 'f': grid_f, 'dx': dx}
     support: サポート区間のリスト
     error_bounds: 誤差上界の情報
     """
-    
+
     def __init__(self,
                  atoms: Optional[List[Tuple[float, float]]] = None,
                  density: Optional[Dict[str, np.ndarray]] = None,
@@ -69,7 +69,8 @@ class Dist:
                  sampler: Optional[Callable[[int], np.ndarray]] = None,
                  sampler_index: Optional[int] = None,
                  dependencies: Optional[Set[int]] = None,
-                 node: Optional[Node] = None):
+                 node: Optional[Node] = None,
+                 sample_func: Optional[Callable[[Dict[int, float]], float]] = None):
         self.atoms = atoms or []  # [(value, weight), ...]
         self.density = density or {}  # {'x': grid_x, 'f': grid_f, 'dx': dx}
         self.support = support or []
@@ -77,6 +78,7 @@ class Dist:
         # サンプリング関数（依存関係の判定に利用）
         self.sampler = sampler
         self.sampler_index = sampler_index
+        self._sample_func = sample_func
 
         # 依存関係の情報
         if dependencies is not None:
@@ -93,6 +95,49 @@ class Dist:
         # 正規化チェック
         self._validate()
     
+    def _sample(self, cache: Optional[Dict[int, float]] = None) -> float:
+        """単一サンプルを生成し、再利用できるようキャッシュする。"""
+        if cache is None:
+            cache = {}
+        key = id(self)
+        if key in cache:
+            return cache[key]
+
+        if self._sample_func is not None:
+            value = self._sample_func(cache)
+        elif self.sampler is not None:
+            samples = self.sample(1)
+            if isinstance(samples, np.ndarray):
+                value = float(samples.ravel()[0])
+            else:
+                value = float(samples)
+        elif self.atoms:
+            values, weights = zip(*self.atoms)
+            weights = np.asarray(weights, dtype=float)
+            total = weights.sum()
+            if total > 0:
+                weights = weights / total
+                value = float(np.random.choice(values, p=weights))
+            else:
+                value = float(values[0])
+        elif self.density:
+            x = self.density.get('x')
+            f = self.density.get('f')
+            dx = self.density.get('dx', 1.0)
+            probs = np.asarray(f, dtype=float) * float(dx)
+            probs = np.clip(probs, 0.0, None)
+            total = probs.sum()
+            if total > 0:
+                probs = probs / total
+                value = float(np.random.choice(x, p=probs))
+            else:
+                value = float(x[0])
+        else:
+            value = 0.0
+
+        cache[key] = value
+        return value
+
     def _validate(self):
         """分布の妥当性をチェック"""
         total_mass = self.total_mass()
@@ -128,22 +173,24 @@ class Dist:
                    sampler: Optional[Callable[[int], np.ndarray]] = None,
                    sampler_index: Optional[int] = None,
                    dependencies: Optional[Set[int]] = None,
-                   node: Optional[Node] = None) -> 'Dist':
+                   node: Optional[Node] = None,
+                   sample_func: Optional[Callable[[Dict[int, float]], float]] = None) -> 'Dist':
         """点質量のみから分布を作成"""
         return cls(atoms=atoms, sampler=sampler, sampler_index=sampler_index,
-                   dependencies=dependencies, node=node)
+                   dependencies=dependencies, node=node, sample_func=sample_func)
 
     @classmethod
     def from_density(cls, x: np.ndarray, f: np.ndarray,
                      sampler: Optional[Callable[[int], np.ndarray]] = None,
                      sampler_index: Optional[int] = None,
                      dependencies: Optional[Set[int]] = None,
-                     node: Optional[Node] = None) -> 'Dist':
+                     node: Optional[Node] = None,
+                     sample_func: Optional[Callable[[Dict[int, float]], float]] = None) -> 'Dist':
         """連続密度から分布を作成"""
         dx = x[1] - x[0] if len(x) > 1 else 1.0
         density = {'x': x, 'f': f, 'dx': dx}
         return cls(density=density, sampler=sampler, sampler_index=sampler_index,
-                   dependencies=dependencies, node=node)
+                   dependencies=dependencies, node=node, sample_func=sample_func)
 
     @classmethod
     def deterministic(cls, value: float) -> 'Dist':
@@ -153,7 +200,8 @@ class Dist:
 
         node = Node(op='Const', inputs=[], dependencies=set())
         return cls.from_atoms([(value, 1.0)], sampler=sampler,
-                              sampler_index=0, dependencies=set(), node=node)
+                              sampler_index=0, dependencies=set(), node=node,
+                              sample_func=lambda cache, v=value: float(v))
     
     def get_support_interval(self) -> Optional[Interval]:
         """全体のサポート区間を取得"""

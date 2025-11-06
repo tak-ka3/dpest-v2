@@ -61,7 +61,9 @@ class Argmax:
             atoms = [(int(idx), cnt/total) for idx, cnt in zip(unique, counts)]
             node = Node(op='Argmax', inputs=[getattr(d, 'node', None) for d in distributions],
                         dependencies=union_deps)
-            return Dist.from_atoms(atoms, dependencies=union_deps, node=node)
+            dist = Dist.from_atoms(atoms, dependencies=union_deps, node=node)
+            dist._sample_func = lambda cache, dists=distributions: float(np.argmax([d._sample(cache) for d in dists]))
+            return dist
 
         n = len(distributions)
         if n == 0:
@@ -81,7 +83,9 @@ class Argmax:
 
         node = Node(op='Argmax', inputs=[getattr(d, 'node', None) for d in distributions],
                     dependencies=union_deps)
-        return Dist.from_atoms(argmax_probs, dependencies=union_deps, node=node)
+        dist = Dist.from_atoms(argmax_probs, dependencies=union_deps, node=node)
+        dist._sample_func = lambda cache, dists=distributions: float(np.argmax([d._sample(cache) for d in dists]))
+        return dist
     
     @staticmethod
     def _compute_argmax_prob(distributions: List[Dist], target_idx: int) -> float:

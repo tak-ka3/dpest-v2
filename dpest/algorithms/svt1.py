@@ -13,7 +13,6 @@ from typing import List
 import math
 import numpy as np
 from ..core import Dist
-from ..engine import FallbackResult
 from ..noise import Laplace
 from ..operations import add, affine, mux, geq
 
@@ -65,69 +64,4 @@ def svt1(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int = 2) -> L
         count = add(count, inc)
         broken = geq(count, c)
 
-    return FallbackResult(
-        result,
-        lambda raw_input, n_samples: _svt1_sampler(raw_input, eps, t, c, n_samples),
-    )
-
-
-def _to_numeric_queries(raw_input: List[Dist], eps: float):
-    values = []
-    if isinstance(raw_input, np.ndarray):
-        iterable = raw_input.tolist()
-    elif isinstance(raw_input, (list, tuple)):
-        iterable = raw_input
-    else:
-        iterable = [raw_input]
-
-    for item in iterable:
-        if isinstance(item, Dist):
-            # deterministicのみサポート
-            if len(item.atoms) == 1 and math.isclose(item.atoms[0][1], 1.0, rel_tol=1e-9):
-                values.append(float(item.atoms[0][0]))
-            else:
-                raise ValueError("Sampling fallback requires deterministic Dist inputs")
-        else:
-            values.append(float(item))
-
-    return np.array(values, dtype=float)
-
-
-def _svt1_sampler(raw_input, eps: float, t: float, c: int, n_samples: int):
-    values = _to_numeric_queries(raw_input, eps)
-    num_queries = len(values)
-    if num_queries == 0:
-        return np.empty((n_samples, 0))
-
-    eps1 = eps / 2.0
-    eps2 = eps - eps1
-    thresh_scale = 1 / eps1
-    query_scale = 2 * c / eps2
-
-    samples = np.empty((n_samples, num_queries), dtype=float)
-
-    for i in range(n_samples):
-        rho = np.random.laplace(loc=0.0, scale=thresh_scale)
-        threshold = t + rho
-        count = 0
-        aborted = False
-
-        for j, val in enumerate(values):
-            if aborted:
-                samples[i, j] = np.nan
-                continue
-
-            noisy_val = val + np.random.laplace(loc=0.0, scale=query_scale)
-            if noisy_val >= threshold:
-                samples[i, j] = 1.0
-                count += 1
-                if count >= c:
-                    aborted = True
-            else:
-                samples[i, j] = 0.0
-
-        if aborted:
-            for k in range(j + 1, num_queries):
-                samples[i, k] = np.nan
-
-    return samples
+    return result

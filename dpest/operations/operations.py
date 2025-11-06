@@ -64,6 +64,8 @@ class Add:
                 result = Dist(atoms=[(0.0, 1.0)],
                               dependencies=x_dist.dependencies | y_dist.dependencies,
                               node=node)
+                # 重要: サンプリング時には、両方の変数をサンプリングして加算する
+                result._sample_func = lambda cache, xd=x_dist, yd=y_dist: xd._sample(cache) + yd._sample(cache)
                 return result
 
         # 依存する入力への対処（サンプルベースの近似）
@@ -160,6 +162,7 @@ class Add:
                       support=result_support,
                       dependencies=x_dist.dependencies | y_dist.dependencies,
                       node=node)
+        result._sample_func = lambda cache, xd=x_dist, yd=y_dist: xd._sample(cache) + yd._sample(cache)
         result.normalize()
 
         # サンプリング関数の伝播
@@ -260,8 +263,10 @@ class Affine:
                     new_interval = Interval(a * interval.high + b, a * interval.low + b)
                 result_support.append(new_interval)
         
-        return Dist(atoms=result_atoms, density=result_density, support=result_support,
-                    dependencies=x_dist.dependencies)
+        result = Dist(atoms=result_atoms, density=result_density, support=result_support,
+                      dependencies=x_dist.dependencies)
+        result._sample_func = lambda cache, xd=x_dist, a=a, b=b: a * xd._sample(cache) + b
+        return result
 
 
 def add(x_dist: Dist, y_dist: Union[Dist, List[Dist]],

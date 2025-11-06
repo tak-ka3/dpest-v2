@@ -13,6 +13,16 @@ from scipy import integrate
 from ..core import Dist, Interval
 
 
+def _max_sample_func(distributions: List[Dist]):
+    def sampler(cache):
+        values = np.array([dist._sample(cache) for dist in distributions], dtype=float)
+        if np.isnan(values).all():
+            return float('nan')
+        return float(np.nanmax(values))
+
+    return sampler
+
+
 class Max:
     """Max演算: Z = max(X1, X2, ..., Xk)"""
 
@@ -79,6 +89,7 @@ class Max:
             dx = bin_edges[1] - bin_edges[0]
             result = Dist(density={'x': centers, 'f': hist, 'dx': dx},
                           dependencies=union_deps)
+            result._sample_func = _max_sample_func(distributions)
             result.normalize()
             return result
 
@@ -89,11 +100,13 @@ class Max:
         if all(not dist.density for dist in distributions):
             result = Max._compute_discrete_max(distributions)
             result.dependencies = union_deps
+            result._sample_func = _max_sample_func(distributions)
             return result
 
         # 連続分布を含む場合
         result = Max._compute_continuous_max(distributions)
         result.dependencies = union_deps
+        result._sample_func = _max_sample_func(distributions)
         return result
     
     @staticmethod
@@ -126,7 +139,12 @@ class Max:
                 max_probs[max_val] = prob
         
         atoms = [(val, prob) for val, prob in max_probs.items()]
-        return Dist.from_atoms(atoms, dependencies=set().union(*[d.dependencies for d in distributions]))
+        deps = set().union(*[d.dependencies for d in distributions])
+        return Dist.from_atoms(
+            atoms,
+            dependencies=deps,
+            sample_func=_min_sample_func(distributions),
+        )
     
     @staticmethod
     def _compute_continuous_max(distributions: List[Dist]) -> Dist:
@@ -172,6 +190,7 @@ class Max:
         # normalize density before creating Dist to avoid mass errors
         f_max = f_max / (np.sum(f_max) * dx)
         result = Dist.from_density(x_grid, f_max)
+        result._sample_func = _max_sample_func(distributions)
         return result
     
     @staticmethod
@@ -269,6 +288,7 @@ class Min:
             dx = bin_edges[1] - bin_edges[0]
             result = Dist(density={'x': centers, 'f': hist, 'dx': dx},
                           dependencies=union_deps)
+            result._sample_func = _min_sample_func(distributions)
             result.normalize()
             return result
 
@@ -284,6 +304,7 @@ class Min:
         # 連続分布を含む場合
         result = Min._compute_continuous_min(distributions)
         result.dependencies = union_deps
+        result._sample_func = _min_sample_func(distributions)
         return result
     
     @staticmethod
@@ -316,7 +337,12 @@ class Min:
                 min_probs[min_val] = prob
         
         atoms = [(val, prob) for val, prob in min_probs.items()]
-        return Dist.from_atoms(atoms, dependencies=set().union(*[d.dependencies for d in distributions]))
+        deps = set().union(*[d.dependencies for d in distributions])
+        return Dist.from_atoms(
+            atoms,
+            dependencies=deps,
+            sample_func=_max_sample_func(distributions),
+        )
     
     @staticmethod
     def _compute_continuous_min(distributions: List[Dist]) -> Dist:
@@ -355,6 +381,7 @@ class Min:
         f_min_density = np.maximum(f_min_density, 0)  # 負の値を0にクリップ
         
         result = Dist.from_density(x_grid, f_min_density)
+        result._sample_func = _min_sample_func(distributions)
         result.normalize()
         return result
 

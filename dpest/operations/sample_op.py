@@ -44,9 +44,36 @@ class Sampled:
         """
         samples = np.asarray(samples)
         if samples.ndim == 1:
-            return Sampled._samples_to_dist(samples, bins)
-        return [Sampled._samples_to_dist(samples[:, i], bins)
-                for i in range(samples.shape[1])]
+            dist = Sampled._samples_to_dist(samples, bins)
+            row_key = ('sampled_row', id(samples))
+
+            def sampler(cache, arr=samples):
+                if arr.size == 0:
+                    return float('nan')
+                row = cache.setdefault(row_key, np.random.randint(arr.shape[0]))
+                return float(arr[row])
+
+            dist._sample_func = sampler
+            return dist
+
+        row_key = ('sampled_row', id(samples))
+        dists = []
+        for i in range(samples.shape[1]):
+            dist = Sampled._samples_to_dist(samples[:, i], bins)
+
+            def sampler(cache, idx=i, arr=samples):
+                if arr.shape[0] == 0:
+                    return float('nan')
+                row = cache.setdefault(row_key, np.random.randint(arr.shape[0]))
+                return float(arr[row, idx])
+
+            dist._sample_func = sampler
+            dists.append(dist)
+
+        for dist in dists:
+            dist._joint_samples = samples
+
+        return dists
 
     @staticmethod
     def _samples_to_dist(samples: np.ndarray, bins: int) -> Dist:

@@ -51,7 +51,13 @@ class Laplace:
             def sampler(n, mu=self.mu, b=self.b):
                 return np.random.laplace(mu, b, (n, 1))
 
-            dist = Dist.from_density(x, f, sampler=sampler, sampler_index=0)
+            dist = Dist.from_density(
+                x,
+                f,
+                sampler=sampler,
+                sampler_index=0,
+                sample_func=lambda cache, mu=self.mu, b=self.b: float(np.random.laplace(mu, b)),
+            )
             node = Node(op='Laplace', inputs=[], dependencies=set(dist.dependencies))
             dist.node = node
             dist.support = [Interval(self.mu - support_range, self.mu + support_range)]
@@ -62,7 +68,13 @@ class Laplace:
                 def sampler(n, mu=self.mu, b=self.b):
                     return np.random.laplace(mu, b, (n, 1))
 
-                dist = Dist.from_density(x, f, sampler=sampler, sampler_index=0)
+                dist = Dist.from_density(
+                    x,
+                    f,
+                    sampler=sampler,
+                    sampler_index=0,
+                    sample_func=lambda cache, mu=self.mu, b=self.b: float(np.random.laplace(mu, b)),
+                )
                 node = Node(op='Laplace', inputs=[], dependencies=set(dist.dependencies))
                 dist.node = node
                 dist.support = [Interval(self.mu - support_range, self.mu + support_range)]
@@ -137,7 +149,13 @@ class Exponential:
             def sampler(n, mu=self.mu, b=self.b):
                 return np.random.exponential(scale=b, size=(n, 1)) + mu
 
-            dist = Dist.from_density(x, f, sampler=sampler, sampler_index=0)
+            dist = Dist.from_density(
+                x,
+                f,
+                sampler=sampler,
+                sampler_index=0,
+                sample_func=lambda cache, mu=self.mu, b=self.b: float(np.random.exponential(scale=b) + mu),
+            )
             node = Node(op='Exponential', inputs=[], dependencies=set(dist.dependencies))
             dist.node = node
             dist.support = [Interval(self.mu, self.mu + support_range)]
@@ -148,7 +166,13 @@ class Exponential:
                 def sampler(n, mu=self.mu, b=self.b):
                     return np.random.exponential(scale=b, size=(n, 1)) + mu
 
-                dist = Dist.from_density(x, f, sampler=sampler, sampler_index=0)
+                dist = Dist.from_density(
+                    x,
+                    f,
+                    sampler=sampler,
+                    sampler_index=0,
+                    sample_func=lambda cache, mu=self.mu, b=self.b: float(np.random.exponential(scale=b) + mu),
+                )
                 node = Node(op='Exponential', inputs=[], dependencies=set(dist.dependencies))
                 dist.node = node
                 dist.support = [Interval(self.mu, self.mu + support_range)]

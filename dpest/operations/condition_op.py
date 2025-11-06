@@ -61,8 +61,14 @@ class Compare:
             inputs.append(getattr(y, 'node', None))
         inputs = [n for n in inputs if n is not None]
         node = Node(op='CompareGEQ', inputs=inputs, dependencies=set(deps))
-        return Dist.from_atoms([(1.0, prob), (0.0, 1.0 - prob)],
-                              dependencies=set(deps), node=node)
+        result = Dist.from_atoms([(1.0, prob), (0.0, 1.0 - prob)],
+                                 dependencies=set(deps), node=node)
+        result._sample_func = (
+            (lambda cache, xd=x_dist, y_val=y: 1.0 if xd._sample(cache) >= (y_val._sample(cache) if isinstance(y_val, Dist) else float(y_val)) else 0.0)
+            if isinstance(y, Dist)
+            else (lambda cache, xd=x_dist, y_const=float(y): 1.0 if xd._sample(cache) >= y_const else 0.0)
+        )
+        return result
 
 
 class Condition:
@@ -136,6 +142,9 @@ class Condition:
                       density=result_density if result_density else None,
                       dependencies=set(deps),
                       node=node)
+        result._sample_func = lambda cache, cond=cond_dist, t_dist=true_dist, f_dist=false_dist: (
+            t_dist._sample(cache) if cond._sample(cache) >= 0.5 else f_dist._sample(cache)
+        )
         result.normalize()
         return result
 
