@@ -160,31 +160,127 @@ class Engine:
         """サンプリングベースでアルゴリズムを実行
 
         アルゴリズムをn_samples回実行して、結果から分布を構築します。
-        各実行では、すべての確率変数が独立にサンプリングされます。
+        ベクトル化により複数サンプルを同時生成して高速化します。
         """
         import numpy as np
         from .operations import Sampled
 
         print("Executing algorithm in sampling mode...")
 
-        def sample_function(n):
-            """アルゴリズムをn回実行してサンプルを生成"""
-            def realize(value, cache):
-                """
-                確率変数を実現値に変換する。
+        def sample_function_vectorized(n):
+            """
+            ベクトル化されたサンプリング: n個のサンプルを同時生成
 
-                重要: cacheを使って、同じ確率変数は同じサンプル値を返すようにする。
-                これにより、SVT1のような状態依存アルゴリズムでも正しく動作する。
+            dpest_referenceの_calc_pdf_by_sampling_rec_vecを参考に実装。
+            各Distオブジェクトから一度にn個のサンプルを生成することで、
+            ループオーバーヘッドを削減する。
+            """
+            def realize_batch(value, n_samples):
                 """
+                確率変数からn_samples個のサンプルをベクトル化して生成
+
+                戻り値:
+                  - スカラー出力の場合: shape (n_samples,) の配列
+                  - リスト出力の場合: shape (n_samples, len(list)) の配列
+                """
+                if isinstance(value, Dist):
+                    # Distオブジェクトからベクトル化サンプリング
+                    if hasattr(value, '_vectorized_sample'):
+                        # カスタムベクトル化サンプリングがあれば使用
+                        return value._vectorized_sample(n_samples)
+
+                    # デフォルト: _sample_funcを使用
+                    if value._sample_func is not None:
+                        # 各サンプルごとに独立したcacheで実行
+                        samples = np.empty(n_samples)
+                        for i in range(n_samples):
+                            samples[i] = value._sample({})
+                        return samples
+
+                    # サンプラーがある場合
+                    if value.sampler is not None:
+                        return value.sample(n_samples)
+
+                    # 離散分布の場合
+                    if value.atoms:
+                        values, weights = zip(*value.atoms)
+                        weights = np.asarray(weights, dtype=float)
+                        total = weights.sum()
+                        if total > 0:
+                            weights = weights / total
+                            return np.random.choice(values, size=n_samples, p=weights)
+                        else:
+                            return np.full(n_samples, values[0])
+
+                    # 連続密度の場合
+                    if value.density:
+                        x = value.density.get('x')
+                        f = value.density.get('f')
+                        dx = value.density.get('dx', 1.0)
+                        probs = np.asarray(f, dtype=float) * float(dx)
+                        probs = np.clip(probs, 0.0, None)
+                        total = probs.sum()
+                        if total > 0:
+                            probs = probs / total
+                            return np.random.choice(x, size=n_samples, p=probs)
+                        else:
+                            return np.full(n_samples, x[0])
+
+                    # フォールバック
+                    return np.zeros(n_samples)
+
+                if isinstance(value, list):
+                    # リストの各要素をサンプリング
+                    # 結果は (n_samples, len(value)) の配列
+
+                    # すべての要素が_sample_funcを持つか確認
+                    all_have_sample_func = all(
+                        isinstance(v, Dist) and v._sample_func is not None
+                        for v in value
+                    )
+
+                    if all_have_sample_func:
+                        # SVT1のような状態を持つアルゴリズム:
+                        # 各サンプルごとにすべての要素が同じcacheを共有する必要がある
+                        samples = np.empty((n_samples, len(value)))
+                        for i in range(n_samples):
+                            cache = {}  # 各サンプルごとに新しいcache
+                            for j, v in enumerate(value):
+                                samples[i, j] = v._sample(cache)
+                        return samples
+                    else:
+                        # 独立な分布: 各要素を並列にベクトル化サンプリング
+                        element_samples = []
+                        for v in value:
+                            elem_batch = realize_batch(v, n_samples)
+                            element_samples.append(elem_batch)
+                        return np.column_stack(element_samples)
+
+                # スカラー値
+                return np.full(n_samples, float(value))
+
+            # アルゴリズムを一度実行して構造を取得
+            result_template = algo_func(input_dist)
+
+            # ベクトル化サンプリングを実行
+            try:
+                samples = realize_batch(result_template, n)
+                return samples
+            except Exception as e:
+                # ベクトル化失敗時は従来の逐次サンプリングにフォールバック
+                print(f"Vectorized sampling failed: {e}")
+                print("Falling back to sequential sampling...")
+                return sample_function_sequential(n)
+
+        def sample_function_sequential(n):
+            """従来の逐次サンプリング（フォールバック用）"""
+            def realize(value, cache):
                 if isinstance(value, Dist):
                     return value._sample(cache)
                 if isinstance(value, list):
-                    # リストの各要素を同じcacheでサンプリング
-                    # これにより、要素間の依存関係が保持される
                     return [realize(v, cache) for v in value]
                 return float(value)
 
-            # 最適化: 出力形状を事前に推定してnumpy配列を事前確保
             # 最初のサンプルで形状を取得
             cache = {}
             result = algo_func(input_dist)
@@ -201,21 +297,9 @@ class Engine:
                 samples[0] = first_sample
                 start_idx = 1
 
-            # 進捗表示の頻度を制御
-            show_every = max(1, n // 10) if n > 20 else n
-
             for i in range(start_idx, n):
-                # 重要: 各イテレーションでアルゴリズムを再実行し、
-                # その場でサンプリングを実行する。
-                # これにより、SVT1のような状態依存アルゴリズムでも
-                # 正しく動作する（各イテレーション内で状態が共有される）
                 cache = {}
-
-                # アルゴリズムを実行して結果（Distまたは List[Dist]）を取得
                 result = algo_func(input_dist)
-
-                # 結果をサンプリング
-                # 重要: リストの場合、同じcacheを使って全要素を一度にサンプリング
                 sample_val = realize(result, cache)
                 samples[i] = sample_val
 
@@ -225,7 +309,8 @@ class Engine:
             sample_array = np.asarray(sampler(raw_input, n_samples))
         else:
             print("Generating samples by executing the algorithm...")
-            sample_array = sample_function(n_samples)
+            # ベクトル化サンプリングを試行
+            sample_array = sample_function_vectorized(n_samples)
         print(f"Generated sample array with shape {sample_array.shape}")
 
         # 既存のサンプル配列から分布を構築（重複実行を回避）
