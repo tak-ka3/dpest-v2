@@ -23,6 +23,16 @@ def _max_sample_func(distributions: List[Dist]):
     return sampler
 
 
+def _min_sample_func(distributions: List[Dist]):
+    def sampler(cache):
+        values = np.array([dist._sample(cache) for dist in distributions], dtype=float)
+        if np.isnan(values).all():
+            return float('nan')
+        return float(np.nanmin(values))
+
+    return sampler
+
+
 class Max:
     """Max演算: Z = max(X1, X2, ..., Xk)"""
 
@@ -143,7 +153,7 @@ class Max:
         return Dist.from_atoms(
             atoms,
             dependencies=deps,
-            sample_func=_min_sample_func(distributions),
+            sample_func=_max_sample_func(distributions),
         )
     
     @staticmethod
@@ -341,7 +351,7 @@ class Min:
         return Dist.from_atoms(
             atoms,
             dependencies=deps,
-            sample_func=_max_sample_func(distributions),
+            sample_func=_min_sample_func(distributions),
         )
     
     @staticmethod
