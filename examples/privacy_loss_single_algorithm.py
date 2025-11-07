@@ -1,37 +1,54 @@
 import argparse
+import json
 import os
 import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import math
 import numpy as np
+from typing import Any, Callable, Dict, List, Tuple
 
-from privacy_loss_report import (
-    estimate_algorithm,
-    noisy_hist1_dist,
-    noisy_hist2_dist,
-    report_noisy_max1_dist,
-    report_noisy_max3_dist,
-    report_noisy_max2_dist,
-    report_noisy_max4_dist,
-    laplace_vec_dist,
-    laplace_parallel_dist,
-    one_time_rappor_dist,
-    rappor_dist,
+from dpest.analysis import estimate_algorithm
+from dpest.algorithms import (
+    noisy_hist1,
+    noisy_hist2,
+    report_noisy_max1,
+    report_noisy_max3,
+    report_noisy_max2,
+    report_noisy_max4,
+    laplace_vec,
+    laplace_parallel,
+    one_time_rappor,
+    rappor,
+    svt1,
+    svt2,
+    svt3,
+    svt4,
+    svt5,
+    svt6,
+    numerical_svt,
 )
 from dpest.utils.input_patterns import generate_patterns
-from dpest.mechanisms.sparse_vector_technique import (
-    SparseVectorTechnique1,
-    SparseVectorTechnique2,
-    SparseVectorTechnique3,
-    SparseVectorTechnique4,
-    SparseVectorTechnique5,
-    SparseVectorTechnique6,
-    NumericalSVT,
-)
 from dpest.mechanisms.prefix_sum import PrefixSum
 from dpest.mechanisms.geometric import TruncatedGeometricMechanism
 from dpest.mechanisms.parallel import SVT34Parallel
+
+
+DEFAULT_CONFIG_PATH = os.path.join(
+    os.path.dirname(__file__),
+    "privacy_loss_single_config.json",
+)
+
+
+def load_config(path: str | None) -> dict:
+    config = {"n_samples": 100_000, "hist_bins": 100}
+    if path and os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        for key in ("n_samples", "hist_bins"):
+            if key in data:
+                config[key] = int(data[key])
+    return config
 
 
 INPUT_SIZES = {
@@ -81,80 +98,120 @@ IDEAL_EPS = {
 }
 
 
-def compute_epsilon(name: str) -> float:
+PairList = List[Tuple[np.ndarray, np.ndarray]]
+AlgorithmHandler = Callable[[str, int, int, int], float]
+
+
+def _resolve_dist_func(obj: Callable) -> Callable:
+    dist_func = getattr(obj, "_dist_func", None)
+    if dist_func is None:
+        return obj
+    return dist_func
+
+
+def _default_pairs(n: int) -> PairList:
+    return list(generate_patterns(n).values())
+
+
+def _make_dist_handler(
+    algo_or_dist: Callable[[np.ndarray, float], Any],
+    *,
+    pairs_factory: Callable[[int], PairList] = _default_pairs,
+) -> AlgorithmHandler:
+    dist_func = _resolve_dist_func(algo_or_dist)
+    def handler(name: str, n: int, n_samples: int, hist_bins: int) -> float:
+        pairs = pairs_factory(n)
+        return estimate_algorithm(
+            name,
+            pairs,
+            dist_func=dist_func,
+            n_samples=n_samples,
+            hist_bins=hist_bins,
+        )
+
+    return handler
+
+
+def _make_mechanism_handler(
+    mechanism_factory: Callable[[], Any],
+    *,
+    pairs_factory: Callable[[int], PairList] = _default_pairs,
+) -> AlgorithmHandler:
+    def handler(name: str, n: int, n_samples: int, hist_bins: int) -> float:
+        pairs = pairs_factory(n)
+        mechanism = mechanism_factory()
+        return estimate_algorithm(
+            name,
+            pairs,
+            mechanism=mechanism,
+            n_samples=n_samples,
+            hist_bins=hist_bins,
+        )
+
+    return handler
+
+
+def _laplace_parallel_pairs(_: int) -> PairList:
+    base_patterns = generate_patterns(INPUT_SIZES["LaplaceMechanism"])
+    return [base_patterns["one_above"]]
+
+
+def _laplace_parallel_dist(
+    data: np.ndarray, eps: float
+):  # pragma: no cover - thin wrapper
+    dist_func = _resolve_dist_func(laplace_parallel)
+    return dist_func(data, 0.005, INPUT_SIZES["LaplaceParallel"])
+
+
+_TRUNCATED_GEOMETRIC_PAIRS: PairList = [
+    (np.array([2]), np.array([1])),
+    (np.array([1]), np.array([0])),
+]
+
+
+def _truncated_pairs(_: int) -> PairList:
+    return [(pair[0].copy(), pair[1].copy()) for pair in _TRUNCATED_GEOMETRIC_PAIRS]
+
+
+ALGORITHM_HANDLERS: Dict[str, AlgorithmHandler] = {
+    "NoisyHist1": _make_dist_handler(noisy_hist1),
+    "NoisyHist2": _make_dist_handler(noisy_hist2),
+    "ReportNoisyMax1": _make_dist_handler(report_noisy_max1),
+    "ReportNoisyMax2": _make_dist_handler(report_noisy_max2),
+    "ReportNoisyMax3": _make_dist_handler(report_noisy_max3),
+    "ReportNoisyMax4": _make_dist_handler(report_noisy_max4),
+    "LaplaceMechanism": _make_dist_handler(laplace_vec),
+    "LaplaceParallel": _make_dist_handler(
+        _laplace_parallel_dist, pairs_factory=_laplace_parallel_pairs
+    ),
+    "SVT1": _make_dist_handler(svt1),
+    "SVT2": _make_dist_handler(svt2),
+    "SVT3": _make_dist_handler(svt3),
+    "SVT4": _make_dist_handler(svt4),
+    "SVT5": _make_dist_handler(svt5),
+    "SVT6": _make_dist_handler(svt6),
+    "SVT34Parallel": _make_mechanism_handler(lambda: SVT34Parallel(eps=0.1)),
+    "NumericalSVT": _make_dist_handler(numerical_svt),
+    "PrefixSum": _make_mechanism_handler(lambda: PrefixSum(eps=0.1)),
+    "OneTimeRAPPOR": _make_dist_handler(one_time_rappor),
+    "RAPPOR": _make_dist_handler(rappor),
+    "TruncatedGeometric": _make_mechanism_handler(
+        lambda: TruncatedGeometricMechanism(eps=0.1, n=5),
+        pairs_factory=_truncated_pairs,
+    ),
+}
+
+
+def compute_epsilon(name: str, *, n_samples: int, hist_bins: int) -> float:
     """Estimate privacy loss for a single algorithm."""
     if name not in INPUT_SIZES:
         raise ValueError(f"Unknown algorithm: {name}")
 
-    n = INPUT_SIZES[name]
+    handler = ALGORITHM_HANDLERS.get(name)
+    if handler is None:
+        raise ValueError(f"Unsupported algorithm: {name}")
 
-    if name == "NoisyHist1":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=noisy_hist1_dist)
-    if name == "NoisyHist2":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=noisy_hist2_dist)
-    if name == "ReportNoisyMax1":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=report_noisy_max1_dist)
-    if name == "ReportNoisyMax3":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=report_noisy_max3_dist)
-    if name == "LaplaceMechanism":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=laplace_vec_dist)
-    if name == "LaplaceParallel":
-        pairs = [generate_patterns(INPUT_SIZES["LaplaceMechanism"])["one_above"]]
-        dist = lambda data, eps: laplace_parallel_dist(data, 0.005, INPUT_SIZES["LaplaceParallel"])
-        return estimate_algorithm(name, pairs, dist_func=dist)
-    if name == "ReportNoisyMax2":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=report_noisy_max2_dist)
-    if name == "ReportNoisyMax4":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=report_noisy_max4_dist)
-    if name == "SVT1":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, mechanism=SparseVectorTechnique1(eps=0.1))
-    if name == "SVT2":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, mechanism=SparseVectorTechnique2(eps=0.1))
-    if name == "SVT3":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, mechanism=SparseVectorTechnique3(eps=0.1))
-    if name == "SVT4":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, mechanism=SparseVectorTechnique4(eps=0.1))
-    if name == "SVT5":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, mechanism=SparseVectorTechnique5(eps=0.1))
-    if name == "SVT6":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, mechanism=SparseVectorTechnique6(eps=0.1))
-    if name == "SVT34Parallel":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, mechanism=SVT34Parallel(eps=0.1))
-    if name == "NumericalSVT":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, mechanism=NumericalSVT(eps=0.1))
-    if name == "PrefixSum":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, mechanism=PrefixSum(eps=0.1))
-    if name == "OneTimeRAPPOR":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=one_time_rappor_dist)
-    if name == "RAPPOR":
-        pairs = list(generate_patterns(n).values())
-        return estimate_algorithm(name, pairs, dist_func=rappor_dist)
-    if name == "TruncatedGeometric":
-        tg_pairs = [(np.array([2]), np.array([1])), (np.array([1]), np.array([0]))]
-        return estimate_algorithm(
-            name,
-            tg_pairs,
-            mechanism=TruncatedGeometricMechanism(eps=0.1, n=5),
-        )
-
-    raise ValueError(f"Unsupported algorithm: {name}")
+    return handler(name, INPUT_SIZES[name], n_samples, hist_bins)
 
 
 def main():
@@ -162,9 +219,19 @@ def main():
         description="Estimate privacy loss for a single algorithm"
     )
     parser.add_argument("algorithm", help="Algorithm name")
+    parser.add_argument(
+        "--config",
+        default=DEFAULT_CONFIG_PATH,
+        help="JSON config path containing 'n_samples' and 'hist_bins'.",
+    )
     args = parser.parse_args()
 
-    eps = compute_epsilon(args.algorithm)
+    config = load_config(args.config)
+    eps = compute_epsilon(
+        args.algorithm,
+        n_samples=config["n_samples"],
+        hist_bins=config["hist_bins"],
+    )
     ideal = IDEAL_EPS.get(args.algorithm)
     size = INPUT_SIZES.get(args.algorithm)
     if ideal is not None:

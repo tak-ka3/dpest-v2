@@ -7,7 +7,7 @@ AddやAffineなどの基本的な確率分布演算を実装します。
 import numpy as np
 from typing import List, Union, Optional
 from scipy import interpolate
-from ..core import Dist, Interval, merge_atoms
+from ..core import Dist, Interval, merge_atoms, Node
 
 
 class Add:
@@ -31,18 +31,42 @@ class Add:
         base_sampler = None
         x_idx = y_idx = None
 
-        # 入力分布が同一のサンプラーを共有している場合、依存とみなす
-        if joint_samples is None and getattr(x_dist, 'sampler', None) is not None \
+        # 依存関係のチェック
+        dependent = False
+        if getattr(x_dist, 'dependencies', set()) & getattr(y_dist, 'dependencies', set()):
+            dependent = True
+        if getattr(x_dist, 'sampler', None) is not None \
            and getattr(y_dist, 'sampler', None) is not None \
            and x_dist.sampler is y_dist.sampler:
-            base_sampler = x_dist.sampler
-            x_idx = x_dist.sampler_index or 0
-            y_idx = y_dist.sampler_index or 0
-            samples = base_sampler(n_samples)
-            samples = np.asarray(samples)
-            if samples.ndim == 1:
-                samples = samples.reshape(-1, 1)
-            joint_samples = np.column_stack((samples[:, x_idx], samples[:, y_idx]))
+            dependent = True
+
+        if dependent and joint_samples is None:
+            # サンプラーが両方にあって、同じサンプラーの場合
+            if getattr(x_dist, 'sampler', None) is not None \
+               and getattr(y_dist, 'sampler', None) is not None \
+               and x_dist.sampler is y_dist.sampler:
+                base_sampler = x_dist.sampler
+                x_idx = x_dist.sampler_index or 0
+                y_idx = y_dist.sampler_index or 0
+                samples = base_sampler(n_samples)
+                samples = np.asarray(samples)
+                if samples.ndim == 1:
+                    samples = samples.reshape(-1, 1)
+                joint_samples = np.column_stack((samples[:, x_idx], samples[:, y_idx]))
+            else:
+                # サンプラーがない、または異なるサンプラーの場合
+                # エラーを投げずに、needs_samplingフラグを設定してプレースホルダーを返す
+                # これによりエンジンレベルでサンプリングモードを検出できる
+                node = Node(op='Add', inputs=[getattr(x_dist, 'node', None), getattr(y_dist, 'node', None)],
+                            dependencies=x_dist.dependencies | y_dist.dependencies,
+                            needs_sampling=True)
+                # プレースホルダーとして空の分布を返す（実際の値は使われない）
+                result = Dist(atoms=[(0.0, 1.0)],
+                              dependencies=x_dist.dependencies | y_dist.dependencies,
+                              node=node)
+                # 重要: サンプリング時には、両方の変数をサンプリングして加算する
+                result._sample_func = lambda cache, xd=x_dist, yd=y_dist: xd._sample(cache) + yd._sample(cache)
+                return result
 
         # 依存する入力への対処（サンプルベースの近似）
         if joint_samples is not None:
@@ -50,7 +74,11 @@ class Add:
             hist, bin_edges = np.histogram(sums, bins=100, density=True)
             centers = (bin_edges[:-1] + bin_edges[1:]) / 2
             dx = bin_edges[1] - bin_edges[0]
-            result = Dist(density={'x': centers, 'f': hist, 'dx': dx})
+            node = Node(op='Add', inputs=[getattr(x_dist, 'node', None), getattr(y_dist, 'node', None)],
+                        dependencies=x_dist.dependencies | y_dist.dependencies)
+            result = Dist(density={'x': centers, 'f': hist, 'dx': dx},
+                          dependencies=x_dist.dependencies | y_dist.dependencies,
+                          node=node)
             result.normalize()
             # サンプラーが存在する場合は結果にも伝播
             if base_sampler is not None:
@@ -128,7 +156,13 @@ class Add:
         # 点質量をマージ
         result_atoms = merge_atoms(result_atoms)
         
-        result = Dist(atoms=result_atoms, density=result_density, support=result_support)
+        node = Node(op='Add', inputs=[getattr(x_dist, 'node', None), getattr(y_dist, 'node', None)],
+                    dependencies=x_dist.dependencies | y_dist.dependencies)
+        result = Dist(atoms=result_atoms, density=result_density,
+                      support=result_support,
+                      dependencies=x_dist.dependencies | y_dist.dependencies,
+                      node=node)
+        result._sample_func = lambda cache, xd=x_dist, yd=y_dist: xd._sample(cache) + yd._sample(cache)
         result.normalize()
 
         # サンプリング関数の伝播
@@ -229,12 +263,15 @@ class Affine:
                     new_interval = Interval(a * interval.high + b, a * interval.low + b)
                 result_support.append(new_interval)
         
-        return Dist(atoms=result_atoms, density=result_density, support=result_support)
+        result = Dist(atoms=result_atoms, density=result_density, support=result_support,
+                      dependencies=x_dist.dependencies)
+        result._sample_func = lambda cache, xd=x_dist, a=a, b=b: a * xd._sample(cache) + b
+        return result
 
 
-def add_distributions(x_dist: Dist, y_dist: Union[Dist, List[Dist]],
-                     joint_samples: Optional[np.ndarray] = None,
-                     n_samples: int = 1000) -> Union[Dist, List[Dist]]:
+def add(x_dist: Dist, y_dist: Union[Dist, List[Dist]],
+        joint_samples: Optional[np.ndarray] = None,
+        n_samples: int = 1000) -> Union[Dist, List[Dist]]:
     """便利関数：分布の加法"""
     if isinstance(y_dist, list):
         if joint_samples is not None:
@@ -244,6 +281,6 @@ def add_distributions(x_dist: Dist, y_dist: Union[Dist, List[Dist]],
         return Add.apply(x_dist, y_dist, joint_samples=joint_samples, n_samples=n_samples)
 
 
-def affine_transform(x_dist: Dist, a: float, b: float = 0.0) -> Dist:
+def affine(x_dist: Dist, a: float, b: float = 0.0) -> Dist:
     """便利関数：アフィン変換"""
     return Affine.apply(x_dist, a, b)

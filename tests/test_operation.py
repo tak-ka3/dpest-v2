@@ -12,7 +12,7 @@ import numpy as np
 from dpest.core import Dist
 from dpest.operations import (
     max_distribution, min_distribution, argmax_distribution,
-    add_distributions, affine_transform,
+    add, affine,
     prefix_sum_distributions, sampled_distribution
 )
 from dpest.noise import create_laplace_noise, Laplace
@@ -117,15 +117,15 @@ def test_mixed_operations():
     print(f"  ラプラス分布: b=1.0")
 
     # 加法: 5 + Lap(1)
-    add_result = add_distributions(det_dist, lap_dist)
-    add_result_prime = add_distributions(Dist.deterministic(6.0), lap_dist)
+    add_result = add(det_dist, lap_dist)
+    add_result_prime = add(Dist.deterministic(6.0), lap_dist)
     print(f"加法結果: 格子点数={len(add_result.density['x'])}, 総質量={add_result.total_mass():.6f}")
     eps_add = estimate_privacy_loss(add_result, add_result_prime)
     print(f"加法の推定ε: {eps_add:.3f}")
 
     # アフィン変換: 2*X + 3
-    affine_result = affine_transform(lap_dist, a=2.0, b=3.0)
-    affine_result_prime = affine_transform(lap_dist, a=2.0, b=4.0)
+    affine_result = affine(lap_dist, a=2.0, b=3.0)
+    affine_result_prime = affine(lap_dist, a=2.0, b=4.0)
     print(f"アフィン変換結果: 格子点数={len(affine_result.density['x'])}, 総質量={affine_result.total_mass():.6f}")
     eps_affine = estimate_privacy_loss(affine_result, affine_result_prime)
     print(f"アフィン変換の推定ε: {eps_affine:.3f}")
@@ -166,8 +166,8 @@ def test_dependent_add_operation():
     cov2 = [[1.0, 0.5], [0.5, 1.0]]
     samples1 = np.random.multivariate_normal([0.0, 0.0], cov1, size=2000)
     samples2 = np.random.multivariate_normal([0.0, 0.0], cov2, size=2000)
-    result1 = add_distributions(Dist.deterministic(0.0), Dist.deterministic(0.0), joint_samples=samples1)
-    result2 = add_distributions(Dist.deterministic(0.0), Dist.deterministic(0.0), joint_samples=samples2)
+    result1 = add(Dist.deterministic(0.0), Dist.deterministic(0.0), joint_samples=samples1)
+    result2 = add(Dist.deterministic(0.0), Dist.deterministic(0.0), joint_samples=samples2)
     mean1 = np.sum(result1.density['x'] * result1.density['f'] * result1.density['dx'])
     mean2 = np.sum(result2.density['x'] * result2.density['f'] * result2.density['dx'])
     print(f"  共分散0.8の平均: {mean1:.3f}")
@@ -202,8 +202,8 @@ def test_noisy_argmax_vs_noisy_max():
     noisy_dists = []
     noisy_dists_prime = []
     for x_dist, x_dist_p, noise_dist in zip(input_dists, input_dists_prime, noise_dists):
-        noisy_dists.append(add_distributions(x_dist, noise_dist))
-        noisy_dists_prime.append(add_distributions(x_dist_p, noise_dist))
+        noisy_dists.append(add(x_dist, noise_dist))
+        noisy_dists_prime.append(add(x_dist_p, noise_dist))
 
     # Argmax計算
     argmax_result = argmax_distribution(noisy_dists)
@@ -259,27 +259,6 @@ def test_sampled_mechanism_operation():
     print()
 
 
-def test_svt_conditional_operation():
-    """条件演算を用いたSparseVectorTechniqueの分布計算テスト"""
-    print("=== SparseVectorTechnique 条件演算テスト ===")
-
-    from dpest.operations import svt5_distribution
-    # 画像1のパターンを長さ10で生成
-    patterns = generate_patterns(10)
-
-    # 画像2の推奨値に基づき eps=0.1 を使用
-    for name, (a, a_prime) in patterns.items():
-        print(f"-- pattern: {name} --")
-        dists_a = svt5_distribution(a, eps=0.1, t=1.0)
-        dists_ap = svt5_distribution(a_prime, eps=0.1, t=1.0)
-        masses_a = [d.total_mass() for d in dists_a]
-        masses_ap = [d.total_mass() for d in dists_ap]
-        print(f"  a ={list(a)} masses={[f'{m:.3f}' for m in masses_a]}")
-        print(f"  a'={list(a_prime)} masses={[f'{m:.3f}' for m in masses_ap]}")
-        eps = [estimate_privacy_loss(p, q) for p, q in zip(dists_a, dists_ap)]
-        print(f"  推定ε={ [f'{e:.3f}' for e in eps] }")
-        print()
-
 
 def main():
     """メイン実行"""
@@ -295,7 +274,6 @@ def main():
         test_dependent_add_operation()
         test_noisy_argmax_vs_noisy_max()
         test_sampled_mechanism_operation()
-        test_svt_conditional_operation()
         
         print("=" * 50)
         print("✅ 全てのテストが正常に完了しました")
@@ -308,4 +286,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

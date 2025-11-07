@@ -6,7 +6,7 @@
 
 import numpy as np
 from typing import Union, List
-from .core import Dist, Interval
+from .core import Dist, Interval, Node
 
 
 class Laplace:
@@ -51,7 +51,15 @@ class Laplace:
             def sampler(n, mu=self.mu, b=self.b):
                 return np.random.laplace(mu, b, (n, 1))
 
-            dist = Dist.from_density(x, f, sampler=sampler, sampler_index=0)
+            dist = Dist.from_density(
+                x,
+                f,
+                sampler=sampler,
+                sampler_index=0,
+                sample_func=lambda cache, mu=self.mu, b=self.b: float(np.random.laplace(mu, b)),
+            )
+            node = Node(op='Laplace', inputs=[], dependencies=set(dist.dependencies))
+            dist.node = node
             dist.support = [Interval(self.mu - support_range, self.mu + support_range)]
             return dist
         else:
@@ -60,7 +68,15 @@ class Laplace:
                 def sampler(n, mu=self.mu, b=self.b):
                     return np.random.laplace(mu, b, (n, 1))
 
-                dist = Dist.from_density(x, f, sampler=sampler, sampler_index=0)
+                dist = Dist.from_density(
+                    x,
+                    f,
+                    sampler=sampler,
+                    sampler_index=0,
+                    sample_func=lambda cache, mu=self.mu, b=self.b: float(np.random.laplace(mu, b)),
+                )
+                node = Node(op='Laplace', inputs=[], dependencies=set(dist.dependencies))
+                dist.node = node
                 dist.support = [Interval(self.mu - support_range, self.mu + support_range)]
                 dists.append(dist)
             # 独立なラプラス分布のリストを返す
@@ -82,10 +98,20 @@ class Laplace:
         return f"Laplace(b={self.b}, mu={self.mu}{size_str})"
 
 
-def create_laplace_noise(b: float, size: int = None) -> Union[Dist, List[Dist]]:
-    """便利関数：ラプラスノイズ分布を作成"""
+def create_laplace_noise(
+    b: float,
+    size: int = None,
+    *,
+    grid_size: int = 1000,
+    support_range: float = None,
+) -> Union[Dist, List[Dist]]:
+    """便利関数：ラプラスノイズ分布を作成
+
+    grid_size や support_range を指定することで、連続分布の離散化精度を
+    制御できるようにする。精度を高めたい場合は grid_size を大きく設定する。
+    """
     laplace = Laplace(b=b, size=size)
-    return laplace.to_dist()
+    return laplace.to_dist(grid_size=grid_size, support_range=support_range)
 
 
 class Exponential:
@@ -123,7 +149,15 @@ class Exponential:
             def sampler(n, mu=self.mu, b=self.b):
                 return np.random.exponential(scale=b, size=(n, 1)) + mu
 
-            dist = Dist.from_density(x, f, sampler=sampler, sampler_index=0)
+            dist = Dist.from_density(
+                x,
+                f,
+                sampler=sampler,
+                sampler_index=0,
+                sample_func=lambda cache, mu=self.mu, b=self.b: float(np.random.exponential(scale=b) + mu),
+            )
+            node = Node(op='Exponential', inputs=[], dependencies=set(dist.dependencies))
+            dist.node = node
             dist.support = [Interval(self.mu, self.mu + support_range)]
             return dist
         else:
@@ -132,7 +166,15 @@ class Exponential:
                 def sampler(n, mu=self.mu, b=self.b):
                     return np.random.exponential(scale=b, size=(n, 1)) + mu
 
-                dist = Dist.from_density(x, f, sampler=sampler, sampler_index=0)
+                dist = Dist.from_density(
+                    x,
+                    f,
+                    sampler=sampler,
+                    sampler_index=0,
+                    sample_func=lambda cache, mu=self.mu, b=self.b: float(np.random.exponential(scale=b) + mu),
+                )
+                node = Node(op='Exponential', inputs=[], dependencies=set(dist.dependencies))
+                dist.node = node
                 dist.support = [Interval(self.mu, self.mu + support_range)]
                 dists.append(dist)
             return dists

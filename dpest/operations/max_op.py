@@ -13,9 +13,29 @@ from scipy import integrate
 from ..core import Dist, Interval
 
 
+def _max_sample_func(distributions: List[Dist]):
+    def sampler(cache):
+        values = np.array([dist._sample(cache) for dist in distributions], dtype=float)
+        if np.isnan(values).all():
+            return float('nan')
+        return float(np.nanmax(values))
+
+    return sampler
+
+
+def _min_sample_func(distributions: List[Dist]):
+    def sampler(cache):
+        values = np.array([dist._sample(cache) for dist in distributions], dtype=float)
+        if np.isnan(values).all():
+            return float('nan')
+        return float(np.nanmin(values))
+
+    return sampler
+
+
 class Max:
     """Max演算: Z = max(X1, X2, ..., Xk)"""
-    
+
     @staticmethod
     def apply(distributions: List[Dist], joint_samples: Optional[np.ndarray] = None) -> Dist:
         """
@@ -32,12 +52,54 @@ class Max:
         if not distributions and joint_samples is None:
             raise ValueError("Empty distribution list")
 
+        union_deps = set().union(*[getattr(d, 'dependencies', set()) for d in distributions])
+
+        if joint_samples is None:
+            # 依存関係のチェック
+            dependent = False
+            for i in range(len(distributions)):
+                for j in range(i + 1, len(distributions)):
+                    if (getattr(distributions[i], 'dependencies', set()) &
+                            getattr(distributions[j], 'dependencies', set())) or \
+                       (getattr(distributions[i], 'sampler', None) is not None and
+                        distributions[i].sampler is distributions[j].sampler):
+                        dependent = True
+                        break
+                if dependent:
+                    break
+
+            if dependent:
+                samplers = [getattr(d, 'sampler', None) for d in distributions]
+                # 共通サンプラーがある場合はそれを使用
+                if not any(s is None for s in samplers) and len({id(s) for s in samplers}) == 1:
+                    base_sampler = samplers[0]
+                    indices = [d.sampler_index or 0 for d in distributions]
+                    samples = base_sampler(1000)
+                    samples = np.asarray(samples)
+                    if samples.ndim == 1:
+                        samples = samples.reshape(-1, 1)
+                    joint_samples = np.column_stack([samples[:, idx] for idx in indices])
+                else:
+                    # サンプラーがない、または異なるサンプラーの場合
+                    # needs_samplingフラグを設定してプレースホルダーを返す
+                    from ..core import Node
+                    node = Node(op='Max',
+                                inputs=[getattr(d, 'node', None) for d in distributions],
+                                dependencies=union_deps,
+                                needs_sampling=True)
+                    result = Dist(atoms=[(0.0, 1.0)],
+                                  dependencies=union_deps,
+                                  node=node)
+                    return result
+
         if joint_samples is not None:
             max_samples = np.max(joint_samples, axis=1)
             hist, bin_edges = np.histogram(max_samples, bins=100, density=True)
             centers = (bin_edges[:-1] + bin_edges[1:]) / 2
             dx = bin_edges[1] - bin_edges[0]
-            result = Dist(density={'x': centers, 'f': hist, 'dx': dx})
+            result = Dist(density={'x': centers, 'f': hist, 'dx': dx},
+                          dependencies=union_deps)
+            result._sample_func = _max_sample_func(distributions)
             result.normalize()
             return result
 
@@ -46,10 +108,16 @@ class Max:
 
         # 離散分布の場合の簡易処理
         if all(not dist.density for dist in distributions):
-            return Max._compute_discrete_max(distributions)
+            result = Max._compute_discrete_max(distributions)
+            result.dependencies = union_deps
+            result._sample_func = _max_sample_func(distributions)
+            return result
 
         # 連続分布を含む場合
-        return Max._compute_continuous_max(distributions)
+        result = Max._compute_continuous_max(distributions)
+        result.dependencies = union_deps
+        result._sample_func = _max_sample_func(distributions)
+        return result
     
     @staticmethod
     def _compute_discrete_max(distributions: List[Dist]) -> Dist:
@@ -81,7 +149,12 @@ class Max:
                 max_probs[max_val] = prob
         
         atoms = [(val, prob) for val, prob in max_probs.items()]
-        return Dist.from_atoms(atoms)
+        deps = set().union(*[d.dependencies for d in distributions])
+        return Dist.from_atoms(
+            atoms,
+            dependencies=deps,
+            sample_func=_max_sample_func(distributions),
+        )
     
     @staticmethod
     def _compute_continuous_max(distributions: List[Dist]) -> Dist:
@@ -127,6 +200,7 @@ class Max:
         # normalize density before creating Dist to avoid mass errors
         f_max = f_max / (np.sum(f_max) * dx)
         result = Dist.from_density(x_grid, f_max)
+        result._sample_func = _max_sample_func(distributions)
         return result
     
     @staticmethod
@@ -190,12 +264,41 @@ class Min:
         if not distributions and joint_samples is None:
             raise ValueError("Empty distribution list")
 
+        union_deps = set().union(*[getattr(d, 'dependencies', set()) for d in distributions])
+
+        if joint_samples is None:
+            dependent = False
+            for i in range(len(distributions)):
+                for j in range(i + 1, len(distributions)):
+                    if (getattr(distributions[i], 'dependencies', set()) &
+                            getattr(distributions[j], 'dependencies', set())) or \
+                       (getattr(distributions[i], 'sampler', None) is not None and
+                        distributions[i].sampler is distributions[j].sampler):
+                        dependent = True
+                        break
+                if dependent:
+                    break
+
+            if dependent:
+                samplers = [getattr(d, 'sampler', None) for d in distributions]
+                if any(s is None for s in samplers) or len({id(s) for s in samplers}) != 1:
+                    raise ValueError("Dependent inputs require joint samples or shared sampler")
+                base_sampler = samplers[0]
+                indices = [d.sampler_index or 0 for d in distributions]
+                samples = base_sampler(1000)
+                samples = np.asarray(samples)
+                if samples.ndim == 1:
+                    samples = samples.reshape(-1, 1)
+                joint_samples = np.column_stack([samples[:, idx] for idx in indices])
+
         if joint_samples is not None:
             min_samples = np.min(joint_samples, axis=1)
             hist, bin_edges = np.histogram(min_samples, bins=100, density=True)
             centers = (bin_edges[:-1] + bin_edges[1:]) / 2
             dx = bin_edges[1] - bin_edges[0]
-            result = Dist(density={'x': centers, 'f': hist, 'dx': dx})
+            result = Dist(density={'x': centers, 'f': hist, 'dx': dx},
+                          dependencies=union_deps)
+            result._sample_func = _min_sample_func(distributions)
             result.normalize()
             return result
 
@@ -204,10 +307,15 @@ class Min:
 
         # 離散分布の場合の簡易処理
         if all(not dist.density for dist in distributions):
-            return Min._compute_discrete_min(distributions)
+            result = Min._compute_discrete_min(distributions)
+            result.dependencies = union_deps
+            return result
 
         # 連続分布を含む場合
-        return Min._compute_continuous_min(distributions)
+        result = Min._compute_continuous_min(distributions)
+        result.dependencies = union_deps
+        result._sample_func = _min_sample_func(distributions)
+        return result
     
     @staticmethod
     def _compute_discrete_min(distributions: List[Dist]) -> Dist:
@@ -239,7 +347,12 @@ class Min:
                 min_probs[min_val] = prob
         
         atoms = [(val, prob) for val, prob in min_probs.items()]
-        return Dist.from_atoms(atoms)
+        deps = set().union(*[d.dependencies for d in distributions])
+        return Dist.from_atoms(
+            atoms,
+            dependencies=deps,
+            sample_func=_min_sample_func(distributions),
+        )
     
     @staticmethod
     def _compute_continuous_min(distributions: List[Dist]) -> Dist:
@@ -278,6 +391,7 @@ class Min:
         f_min_density = np.maximum(f_min_density, 0)  # 負の値を0にクリップ
         
         result = Dist.from_density(x_grid, f_min_density)
+        result._sample_func = _min_sample_func(distributions)
         result.normalize()
         return result
 
