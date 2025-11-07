@@ -15,12 +15,14 @@ import numpy as np
 from ..core import Dist
 from ..noise import Laplace
 from ..operations import add, affine, mux, geq
+from .registry import auto_dist
 
 # NANセンチネル値
 NAN = float('nan')
 
 
-def svt1(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int = 2) -> List[Dist]:
+@auto_dist()
+def svt1(queries: List[Dist], eps: float = 0.1, t: float = 0.5, c: int = 1) -> List[Dist]:
     """
     SVT1アルゴリズムの分布ベース実装
 

@@ -54,6 +54,8 @@ class Sampled:
                 return float(arr[row])
 
             dist._sample_func = sampler
+            dist._joint_samples = samples.reshape(-1, 1)
+            dist._joint_samples_column = 0
             return dist
 
         row_key = ('sampled_row', id(samples))
@@ -72,6 +74,8 @@ class Sampled:
 
         for dist in dists:
             dist._joint_samples = samples
+        for idx, dist in enumerate(dists):
+            dist._joint_samples_column = idx
 
         return dists
 

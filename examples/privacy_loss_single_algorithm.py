@@ -10,23 +10,23 @@ from typing import Any, Callable, Dict, List, Tuple
 
 from dpest.analysis import estimate_algorithm
 from dpest.algorithms import (
-    noisy_hist1_dist,
-    noisy_hist2_dist,
-    report_noisy_max1_dist,
-    report_noisy_max3_dist,
-    report_noisy_max2_dist,
-    report_noisy_max4_dist,
-    laplace_vec_dist,
-    laplace_parallel_dist,
-    one_time_rappor_dist,
-    rappor_dist,
-    svt1_dist,
-    svt2_dist,
-    svt3_dist,
-    svt4_dist,
-    svt5_dist,
-    svt6_dist,
-    numerical_svt_dist,
+    noisy_hist1,
+    noisy_hist2,
+    report_noisy_max1,
+    report_noisy_max3,
+    report_noisy_max2,
+    report_noisy_max4,
+    laplace_vec,
+    laplace_parallel,
+    one_time_rappor,
+    rappor,
+    svt1,
+    svt2,
+    svt3,
+    svt4,
+    svt5,
+    svt6,
+    numerical_svt,
 )
 from dpest.utils.input_patterns import generate_patterns
 from dpest.mechanisms.prefix_sum import PrefixSum
@@ -102,15 +102,23 @@ PairList = List[Tuple[np.ndarray, np.ndarray]]
 AlgorithmHandler = Callable[[str, int, int, int], float]
 
 
+def _resolve_dist_func(obj: Callable) -> Callable:
+    dist_func = getattr(obj, "_dist_func", None)
+    if dist_func is None:
+        return obj
+    return dist_func
+
+
 def _default_pairs(n: int) -> PairList:
     return list(generate_patterns(n).values())
 
 
 def _make_dist_handler(
-    dist_func: Callable[[np.ndarray, float], Any],
+    algo_or_dist: Callable[[np.ndarray, float], Any],
     *,
     pairs_factory: Callable[[int], PairList] = _default_pairs,
 ) -> AlgorithmHandler:
+    dist_func = _resolve_dist_func(algo_or_dist)
     def handler(name: str, n: int, n_samples: int, hist_bins: int) -> float:
         pairs = pairs_factory(n)
         return estimate_algorithm(
@@ -151,7 +159,8 @@ def _laplace_parallel_pairs(_: int) -> PairList:
 def _laplace_parallel_dist(
     data: np.ndarray, eps: float
 ):  # pragma: no cover - thin wrapper
-    return laplace_parallel_dist(data, 0.005, INPUT_SIZES["LaplaceParallel"])
+    dist_func = _resolve_dist_func(laplace_parallel)
+    return dist_func(data, 0.005, INPUT_SIZES["LaplaceParallel"])
 
 
 _TRUNCATED_GEOMETRIC_PAIRS: PairList = [
@@ -165,27 +174,27 @@ def _truncated_pairs(_: int) -> PairList:
 
 
 ALGORITHM_HANDLERS: Dict[str, AlgorithmHandler] = {
-    "NoisyHist1": _make_dist_handler(noisy_hist1_dist),
-    "NoisyHist2": _make_dist_handler(noisy_hist2_dist),
-    "ReportNoisyMax1": _make_dist_handler(report_noisy_max1_dist),
-    "ReportNoisyMax2": _make_dist_handler(report_noisy_max2_dist),
-    "ReportNoisyMax3": _make_dist_handler(report_noisy_max3_dist),
-    "ReportNoisyMax4": _make_dist_handler(report_noisy_max4_dist),
-    "LaplaceMechanism": _make_dist_handler(laplace_vec_dist),
+    "NoisyHist1": _make_dist_handler(noisy_hist1),
+    "NoisyHist2": _make_dist_handler(noisy_hist2),
+    "ReportNoisyMax1": _make_dist_handler(report_noisy_max1),
+    "ReportNoisyMax2": _make_dist_handler(report_noisy_max2),
+    "ReportNoisyMax3": _make_dist_handler(report_noisy_max3),
+    "ReportNoisyMax4": _make_dist_handler(report_noisy_max4),
+    "LaplaceMechanism": _make_dist_handler(laplace_vec),
     "LaplaceParallel": _make_dist_handler(
         _laplace_parallel_dist, pairs_factory=_laplace_parallel_pairs
     ),
-    "SVT1": _make_dist_handler(svt1_dist),
-    "SVT2": _make_dist_handler(svt2_dist),
-    "SVT3": _make_dist_handler(svt3_dist),
-    "SVT4": _make_dist_handler(svt4_dist),
-    "SVT5": _make_dist_handler(svt5_dist),
-    "SVT6": _make_dist_handler(svt6_dist),
+    "SVT1": _make_dist_handler(svt1),
+    "SVT2": _make_dist_handler(svt2),
+    "SVT3": _make_dist_handler(svt3),
+    "SVT4": _make_dist_handler(svt4),
+    "SVT5": _make_dist_handler(svt5),
+    "SVT6": _make_dist_handler(svt6),
     "SVT34Parallel": _make_mechanism_handler(lambda: SVT34Parallel(eps=0.1)),
-    "NumericalSVT": _make_dist_handler(numerical_svt_dist),
+    "NumericalSVT": _make_dist_handler(numerical_svt),
     "PrefixSum": _make_mechanism_handler(lambda: PrefixSum(eps=0.1)),
-    "OneTimeRAPPOR": _make_dist_handler(one_time_rappor_dist),
-    "RAPPOR": _make_dist_handler(rappor_dist),
+    "OneTimeRAPPOR": _make_dist_handler(one_time_rappor),
+    "RAPPOR": _make_dist_handler(rappor),
     "TruncatedGeometric": _make_mechanism_handler(
         lambda: TruncatedGeometricMechanism(eps=0.1, n=5),
         pairs_factory=_truncated_pairs,

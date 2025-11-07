@@ -12,27 +12,34 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from dpest.analysis import estimate_algorithm, generate_change_one_pairs, generate_hist_pairs
 from dpest.algorithms import (
-    laplace_parallel_dist,
-    laplace_vec_dist,
-    noisy_hist1_dist,
-    noisy_hist2_dist,
-    numerical_svt_dist,
-    one_time_rappor_dist,
-    rappor_dist,
-    report_noisy_max1_dist,
-    report_noisy_max2_dist,
-    report_noisy_max3_dist,
-    report_noisy_max4_dist,
-    svt1_dist,
-    svt2_dist,
-    svt3_dist,
-    svt4_dist,
-    svt5_dist,
-    svt6_dist,
+    laplace_parallel,
+    laplace_vec,
+    noisy_hist1,
+    noisy_hist2,
+    numerical_svt,
+    one_time_rappor,
+    rappor,
+    report_noisy_max1,
+    report_noisy_max2,
+    report_noisy_max3,
+    report_noisy_max4,
+    svt1,
+    svt2,
+    svt3,
+    svt4,
+    svt5,
+    svt6,
 )
 from dpest.mechanisms.geometric import TruncatedGeometricMechanism
 from dpest.mechanisms.parallel import SVT34Parallel
 from dpest.mechanisms.prefix_sum import PrefixSum
+
+
+def _resolve_dist_func(obj):
+    dist_func = getattr(obj, "_dist_func", None)
+    if dist_func is None:
+        return obj
+    return dist_func
 
 
 DEFAULT_CONFIG_PATH = os.path.join(
@@ -128,12 +135,12 @@ def main():
     results.append((
         "NoisyHist1",
         input_sizes["NoisyHist1"],
-        estimate_algorithm("NoisyHist1", hist_pairs, dist_func=noisy_hist1_dist, **common_kwargs),
+        estimate_algorithm("NoisyHist1", hist_pairs, dist_func=_resolve_dist_func(noisy_hist1), **common_kwargs),
     ))
     results.append((
         "NoisyHist2",
         input_sizes["NoisyHist2"],
-        estimate_algorithm("NoisyHist2", hist_pairs, dist_func=noisy_hist2_dist, **common_kwargs),
+        estimate_algorithm("NoisyHist2", hist_pairs, dist_func=_resolve_dist_func(noisy_hist2), **common_kwargs),
     ))
 
     # Report Noisy Max / Laplace 系
@@ -141,29 +148,29 @@ def main():
     results.append((
         "ReportNoisyMax1",
         input_sizes["ReportNoisyMax1"],
-        estimate_algorithm("ReportNoisyMax1", vec_pairs, dist_func=report_noisy_max1_dist, **common_kwargs),
+        estimate_algorithm("ReportNoisyMax1", vec_pairs, dist_func=_resolve_dist_func(report_noisy_max1), **common_kwargs),
     ))
     results.append((
         "ReportNoisyMax3",
         input_sizes["ReportNoisyMax3"],
-        estimate_algorithm("ReportNoisyMax3", vec_pairs, dist_func=report_noisy_max3_dist, **common_kwargs),
+        estimate_algorithm("ReportNoisyMax3", vec_pairs, dist_func=_resolve_dist_func(report_noisy_max3), **common_kwargs),
     ))
     results.append((
         "ReportNoisyMax2",
         input_sizes["ReportNoisyMax2"],
-        estimate_algorithm("ReportNoisyMax2", vec_pairs, dist_func=report_noisy_max2_dist, **common_kwargs),
+        estimate_algorithm("ReportNoisyMax2", vec_pairs, dist_func=_resolve_dist_func(report_noisy_max2), **common_kwargs),
     ))
     results.append((
         "ReportNoisyMax4",
         input_sizes["ReportNoisyMax4"],
-        estimate_algorithm("ReportNoisyMax4", vec_pairs, dist_func=report_noisy_max4_dist, **common_kwargs),
+        estimate_algorithm("ReportNoisyMax4", vec_pairs, dist_func=_resolve_dist_func(report_noisy_max4), **common_kwargs),
     ))
 
     laplace_pairs = generate_change_one_pairs(input_sizes["LaplaceMechanism"])
     results.append((
         "LaplaceMechanism",
         input_sizes["LaplaceMechanism"],
-        estimate_algorithm("LaplaceMechanism", laplace_pairs, dist_func=laplace_vec_dist, **common_kwargs),
+        estimate_algorithm("LaplaceMechanism", laplace_pairs, dist_func=_resolve_dist_func(laplace_vec), **common_kwargs),
     ))
     results.append((
         "LaplaceParallel",
@@ -171,7 +178,7 @@ def main():
         estimate_algorithm(
             "LaplaceParallel",
             [laplace_pairs[0]],
-            dist_func=lambda data, eps: laplace_parallel_dist(
+            dist_func=lambda data, eps: _resolve_dist_func(laplace_parallel)(
                 data, 0.005, input_sizes["LaplaceParallel"]
             ),
             **common_kwargs,
@@ -184,32 +191,32 @@ def main():
     results.append((
         "SVT1",
         input_sizes["SVT1"],
-        estimate_algorithm("SVT1", svt_pairs_short, dist_func=svt1_dist, **common_kwargs),
+        estimate_algorithm("SVT1", svt_pairs_short, dist_func=_resolve_dist_func(svt1), **common_kwargs),
     ))
     results.append((
         "SVT2",
         input_sizes["SVT2"],
-        estimate_algorithm("SVT2", svt_pairs_short, dist_func=svt2_dist, **common_kwargs),
+        estimate_algorithm("SVT2", svt_pairs_short, dist_func=_resolve_dist_func(svt2), **common_kwargs),
     ))
     results.append((
         "SVT3",
         input_sizes["SVT3"],
-        estimate_algorithm("SVT3", svt_pairs_short, dist_func=svt3_dist, **common_kwargs),
+        estimate_algorithm("SVT3", svt_pairs_short, dist_func=_resolve_dist_func(svt3), **common_kwargs),
     ))
     results.append((
         "SVT4",
         input_sizes["SVT4"],
-        estimate_algorithm("SVT4", svt_pairs_short, dist_func=svt4_dist, **common_kwargs),
+        estimate_algorithm("SVT4", svt_pairs_short, dist_func=_resolve_dist_func(svt4), **common_kwargs),
     ))
     results.append((
         "SVT5",
         input_sizes["SVT5"],
-        estimate_algorithm("SVT5", svt_pairs_long, dist_func=svt5_dist, **common_kwargs),
+        estimate_algorithm("SVT5", svt_pairs_long, dist_func=_resolve_dist_func(svt5), **common_kwargs),
     ))
     results.append((
         "SVT6",
         input_sizes["SVT6"],
-        estimate_algorithm("SVT6", svt_pairs_long, dist_func=svt6_dist, **common_kwargs),
+        estimate_algorithm("SVT6", svt_pairs_long, dist_func=_resolve_dist_func(svt6), **common_kwargs),
     ))
     results.append((
         "NumericalSVT",
@@ -217,7 +224,7 @@ def main():
         estimate_algorithm(
             "NumericalSVT",
             generate_change_one_pairs(input_sizes["NumericalSVT"]),
-            dist_func=numerical_svt_dist,
+            dist_func=_resolve_dist_func(numerical_svt),
             **common_kwargs,
         ),
     ))
@@ -248,13 +255,13 @@ def main():
     results.append((
         "OneTimeRAPPOR",
         input_sizes["OneTimeRAPPOR"],
-        estimate_algorithm("OneTimeRAPPOR", otr_pairs, dist_func=one_time_rappor_dist, **common_kwargs),
+        estimate_algorithm("OneTimeRAPPOR", otr_pairs, dist_func=_resolve_dist_func(one_time_rappor), **common_kwargs),
     ))
     rappor_pairs = generate_change_one_pairs(input_sizes["RAPPOR"])
     results.append((
         "RAPPOR",
         input_sizes["RAPPOR"],
-        estimate_algorithm("RAPPOR", rappor_pairs, dist_func=rappor_dist, **common_kwargs),
+        estimate_algorithm("RAPPOR", rappor_pairs, dist_func=_resolve_dist_func(rappor), **common_kwargs),
     ))
 
     tg_pairs = [(np.array([2]), np.array([1])), (np.array([1]), np.array([0]))]

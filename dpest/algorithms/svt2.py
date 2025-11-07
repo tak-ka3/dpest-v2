@@ -13,11 +13,13 @@ from typing import List
 from ..core import Dist
 from ..noise import Laplace
 from ..operations import add, affine, mux, geq
+from .registry import auto_dist
 
 # NANセンチネル値
 NAN = float('nan')
 
 
+@auto_dist()
 def svt2(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int = 2) -> List[Dist]:
     """
     SVT2アルゴリズムの分布ベース実装
