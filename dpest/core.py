@@ -70,7 +70,8 @@ class Dist:
                  sampler_index: Optional[int] = None,
                  dependencies: Optional[Set[int]] = None,
                  node: Optional[Node] = None,
-                 sample_func: Optional[Callable[[Dict[int, float]], float]] = None):
+                 sample_func: Optional[Callable[[Dict[int, float]], float]] = None,
+                 skip_validation: bool = False):
         self.atoms = atoms or []  # [(value, weight), ...]
         self.density = density or {}  # {'x': grid_x, 'f': grid_f, 'dx': dx}
         self.support = support or []
@@ -92,8 +93,9 @@ class Dist:
         # 計算グラフノード
         self.node = node
 
-        # 正規化チェック
-        self._validate()
+        # 正規化チェック（サンプリング時はスキップ可能）
+        if not skip_validation:
+            self._validate()
     
     def _sample(self, cache: Optional[Dict[int, float]] = None) -> float:
         """単一サンプルを生成し、再利用できるようキャッシュする。"""

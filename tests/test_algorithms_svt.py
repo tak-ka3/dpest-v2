@@ -5,7 +5,7 @@ import pytest
 
 from dpest.core import Dist
 from dpest.engine import compile
-from dpest.algorithms.distributions import report_noisy_max1_dist
+from dpest.algorithms import report_noisy_max1_dist
 from dpest.algorithms.svt1 import svt1
 
 

@@ -14,7 +14,7 @@ from .operations import (
     geq, MUX, mux, NAN, PAD,
 )
 from .engine import (Engine, compile, AlgorithmBuilder, Laplace_dist, Exponential_dist,
-                     vector_argmax, vector_max, vector_min)
+                     vector_add, vector_argmax, vector_max, vector_min)
 
 __version__ = "0.1.0"
 
@@ -27,6 +27,7 @@ __all__ = [
     # ノイズ機構
     'Laplace', 'Exponential', 'create_laplace_noise', 'create_exponential_noise',
     'Laplace_dist', 'Exponential_dist',
+    'vector_add',
     # 演算
     'Add', 'Affine', 'add', 'affine',
     'Argmax', 'argmax_distribution', 'vector_argmax',

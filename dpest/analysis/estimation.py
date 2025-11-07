@@ -51,6 +51,7 @@ def estimate_algorithm(
         elif dist_func is not None:
             args = (D, eps) if extra is None else (D, eps, *extra)
             P = dist_func(*args)
+            print("P:", P)  # Debug print
             args_prime = (Dp, eps) if extra is None else (Dp, eps, *extra)
             Q = dist_func(*args_prime)
             if isinstance(P, list):
