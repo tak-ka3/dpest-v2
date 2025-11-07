@@ -1,83 +1,86 @@
-# 確率分布演算 Operation の計算方法
+# dpest_impl
 
-本ライブラリで実装されている各Operationの確率分布計算方法について説明します。
+差分プライバシー ε 推定フレームワーク
 
----
+## 手法の概要
 
-## 1. Max演算
+dpest_impl は差分プライバシー (DP) アルゴリズムを「確率分布オブジェクト (`Dist`) の計算グラフ」として表現し、その分布を解析またはサンプリングによって求めることで ε を推定します。各ステップはスカラー値ではなく分布を入力・出力とする演算で記述します。
 
-- **目的**: 複数の確率変数 $X_1, X_2, ..., X_k$ の最大値 $Z = \max(X_1, ..., X_k)$ の分布を計算します。
-- **公式**:
-    - 累積分布関数: $F_{\max}(z) = \prod_{i=1}^k F_i(z)$
-    - 確率密度関数: $f_{\max}(z) = \sum_{i=1}^k f_i(z) \prod_{j\ne i} F_j(z)$
-- **実装**:  
-  - 離散分布のみの場合は全組合せを列挙し最大値ごとに集計。
-  - 連続分布を含む場合は統一格子上で上記公式に従い数値計算します。
+- **Atoms**: 離散的な確率質量（確定値など）を保持。
+- **Density grids**: 連続分布を格子状に離散化。
+- **Samplers**: 解析が難しい場合のカスタム乱数生成器。
 
----
+`add`, `affine`, `geq`, `mux`, `max` などの演算はすべて `Dist` 上で定義されており、アルゴリズムを宣言的に組み立てられるようになっています。
 
-## 2. Min演算
+### コンパイル時の解析とサンプリング切り替え
 
-- **目的**: 複数の確率変数 $X_1, ..., X_k$ の最小値 $Z = \min(X_1, ..., X_k)$ の分布を計算します。
-- **公式**:
-    - $1 - F_{\min}(z) = \prod_{i=1}^k (1 - F_i(z))$
-    - 密度は $F_{\min}(z)$ の数値微分で得ます。
-- **実装**:  
-  - 離散分布のみの場合は全組合せを列挙し最小値ごとに集計。
-  - 連続分布を含む場合は統一格子上で上記公式に従い数値計算します。
+`dpest.engine.compile` によりアルゴリズムをコンパイルすると、エンジンは計算グラフを解析します。
 
----
+1. **依存関係解析**:  同じ乱数源に依存する分布が存在すると、独立性の仮定が崩れるため解析モードでは扱えません。
+2. **モード選択**:
+   - 依存が問題にならなければ、解析的または格子上での数値計算により正確な分布を求めます。
+   - 依存がある場合はサンプリングモードに切り替え、ベクトル化された Monte Carlo 実行で ` _joint_samples` を生成します。このジョイントサンプルは出力要素間の相関を保持します。
 
-## 3. Add演算
+### プライバシー損失 (ε) 推定フロー
 
-- **目的**: $Z = X + Y$ の分布を計算します（$X, Y$ 独立）。
-- **公式**:
-    - 連続+連続: $f_Z(z) = (f_X * f_Y)(z)$（畳み込み, FFT利用）
-    - 離散+離散: $P(Z=z) = \sum_{x+y=z} P(X=x)P(Y=y)$
-    - 離散+連続: $f_Z(z) = \sum_i w_i f_Y(z-a_i)$
-- **実装**:  
-  - 入力の型（離散/連続）に応じて場合分けし、FFTや補間を用いて計算します。
+`dpest.analysis.estimate_algorithm` が ε 推定の共通ルートです。
 
----
+1. 隣接データセットの組 (change-one adjacency) を生成。
+2. 各組について、アルゴリズムの分布関数 (`svt1_dist`, `noisy_hist1_dist` など) を実行し、2つの出力分布を得る。
+3. ε を計算:
+   - ジョイントサンプルがあれば `epsilon_from_list_joint` で多次元ヒストグラム（NaN パターンも含む）を評価。
+   - 厳密な分布オブジェクトなら `epsilon_from_dist` で解析的に計算。
+4. すべての隣接ペアで最大の ε を採用。
 
-## 4. Affine演算
+こうすることで、分布演算で記述されたアルゴリズムはすべて同じ推定パイプラインに乗ります。
 
-- **目的**: $Z = aX + b$ の分布を計算します。
-- **公式**:
-    - 連続部: $f_Z(z) = \frac{1}{|a|} f_X\left(\frac{z-b}{a}\right)$
-    - 点質量: $(a_i, w_i) \mapsto (a a_i + b, w_i)$
-- **実装**:  
-  - 連続部はグリッド変換とヤコビアン補正。
-  - 点質量は座標変換のみ。
+#### compile() 呼び出しの流れ
 
----
+```python
+from dpest.engine import compile
+from dpest.algorithms.svt1 import svt1
 
-## 5. Argmax演算
+algo = compile(lambda q: svt1(q, eps=0.1))
+output_dist = algo(input_distributions)
+```
 
-- **目的**: $Z = \mathrm{argmax}_i X_i$ の分布（各インデックスが最大となる確率）を計算します。
-- **公式**:
-    - $P(\mathrm{argmax}=i) = \int f_i(x) \prod_{j\ne i} F_j(x) dx$
-- **実装**:  
-  - 離散分布のみの場合は全組合せを列挙し最大インデックスごとに集計。
-  - 連続分布を含む場合は格子上で数値積分します。
+- **1. 計算グラフ構築**: `compile()` はラムダを一度走らせ、内部で生成された `Dist` それぞれに `Node` 情報を付与して依存関係を収集します。
+- **2. 依存解析**: `Node.dependencies` が重なる場合や `needs_sampling` フラグが立つ場合は解析的には扱えないため、エンジンはモードを `sampling` に設定します。
+- **3. 実行プラン生成**: `Engine.ExecutionPlan` に解析結果と初期出力を格納。解析モードなら即結果を返す準備が整い、サンプリングモードなら `_execute_sampling` 用の設定が保存されます。
+- **4. 実行**: `algo(input_distributions)` を呼ぶと `_create_input_distribution` が入力を `Dist` 化し、上記プランに基づいて解析またはサンプリングで分布を返します。サンプリングではベクトル化された Monte Carlo 実行で `Sampled.from_samples` を呼び、得られた `_joint_samples` が ε 推定の joint histogram に利用されます。
 
----
+### `@auto_dist` によるラッパー自動生成
 
-各Operationの詳細な実装は [operations/max_op.py](operations/max_op.py), [operations/operations.py](operations/operations.py), [operations/argmax_op.py](operations/argmax_op.py) を参照してください。
+アルゴリズム実装（例: `svt1.py`, `noisy_hist1.py`）は `List[Dist]` を引数に取りますが、テストや examples では数値配列を渡したい場面が多いです。`@auto_dist` デコレータを使うと、次の処理を行う `*_dist` ラッパーが自動生成されます。
 
-## テスト
+- 数値配列を確定値 `Dist` に変換。
+- エンジンでコンパイルし、解析またはサンプリングを実行。
+- `svt1_dist` などの名前で公開（手動の重複実装は不要）。
 
-自動テストは `pytest` で実行できます:
+これにより SVT 系もノイズ機構系も同じ呼び出しフローを共有します。
+
+## リポジトリ構成
+
+- `dpest/core.py`: `Dist` や `Interval`、検証ロジック。
+- `dpest/operations/`: 加算、比較、argmax/max、mux などの演算。
+- `dpest/engine.py`: コンパイル・依存解析・解析/サンプリングモード切り替え。
+- `dpest/analysis/`: 隣接ペア生成、ε 推定ヘルパー。
+- `dpest/algorithms/`: アルゴリズムごとのモジュール（SVT, Noisy Hist, Laplace, RAPPOR 等）。すべて `@auto_dist` を使用。
+- `examples/`: `privacy_loss_single_algorithm.py` などの実行スクリプト。
+- `tests/`: 各演算・アルゴリズムを検証する pytest スイート。
+
+## テストの実行
 
 ```bash
 pip install -r requirements.txt
-pytest
+PYTHONPATH=. pytest
 ```
 
-手動で挙動を確認したい場合は、以下を実行してください:
+## 実行例
+
+SVT1 の ε を推定する例:
 
 ```bash
-python tests/test_operation.py
+PYTHONPATH=. python examples/privacy_loss_single_algorithm.py SVT1 \
+  --config examples/privacy_loss_single_config.json
 ```
-
-GitHub Actions でもプッシュやプルリクエスト時に加え、Actionsタブから手動でも同じテストを実行できます。
