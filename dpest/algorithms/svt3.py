@@ -21,7 +21,7 @@ FALSE_SENTINEL = -1000.0  # FALSE出力用
 
 
 @auto_dist()
-def svt3(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int = 2) -> List[Dist]:
+def svt3(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int = 1) -> List[Dist]:
     """
     SVT3アルゴリズムの分布ベース実装
 
@@ -29,7 +29,7 @@ def svt3(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int = 2) -> L
         queries: クエリ結果の分布のリスト
         eps: プライバシーパラメータ（デフォルト: 0.1）
         t: 閾値（デフォルト: 1.0）
-        c: 最大出力回数（cutoff、デフォルト: 2）
+        c: 最大出力回数（cutoff、デフォルト: 1）
 
     Returns:
         各クエリに対する出力分布のリスト
