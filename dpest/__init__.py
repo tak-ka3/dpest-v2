@@ -8,10 +8,10 @@ from .core import Dist, Interval
 from .noise import Laplace, Exponential, create_laplace_noise, create_exponential_noise
 from .operations import (
     Add, Affine, add, affine,
-    Max, Min, max_distribution, min_distribution,
-    Argmax, argmax_distribution,
+    Max, Min, max_op, min_op,
+    Argmax, argmax,
     Sampled, sampled_distribution,
-    geq, MUX, mux, NAN, PAD,
+    geq, condition, MUX, mux, NAN, PAD,
 )
 from .engine import (Engine, compile, AlgorithmBuilder, Laplace_dist, Exponential_dist,
                      vector_add, vector_argmax, vector_max, vector_min)
@@ -27,13 +27,14 @@ __all__ = [
     # ノイズ機構
     'Laplace', 'Exponential', 'create_laplace_noise', 'create_exponential_noise',
     'Laplace_dist', 'Exponential_dist',
-    'vector_add',
     # 演算
     'Add', 'Affine', 'add', 'affine',
-    'Argmax', 'argmax_distribution', 'vector_argmax',
-    'Max', 'Min', 'max_distribution', 'min_distribution', 'vector_max', 'vector_min',
+    'Argmax', 'argmax',
+    'Max', 'Min', 'max_op', 'min_op',
     'Sampled', 'sampled_distribution',
-    'GE', 'geq', 'MUX', 'mux', 'NAN', 'PAD',
+    'GE', 'geq', 'condition', 'MUX', 'mux', 'NAN', 'PAD',
+    # ベクトル演算
+    'vector_add', 'vector_argmax', 'vector_max', 'vector_min',
     # エンジン
     'Engine', 'compile', 'AlgorithmBuilder',
 ]

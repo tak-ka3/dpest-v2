@@ -150,10 +150,23 @@ class Condition:
 
 
 def geq(x_dist: Dist, y: Union[Dist, float]) -> Dist:
-    """ ``Compare.geq`` を呼び出すための簡易関数。"""
+    """``Compare.geq`` を呼び出すための簡易関数。"""
     return Compare.geq(x_dist, y)
 
 
-def condition_mixture(cond_dist: Dist, true_dist: Dist, false_dist: Dist) -> Dist:
-    """ ``Condition.apply`` を呼び出すための簡易関数。"""
+def condition(cond_dist: Dist, true_dist: Dist, false_dist: Dist) -> Dist:
+    """``Condition.apply`` を呼び出すための簡易関数。
+
+    Args:
+        cond_dist: 条件を表す {0,1} 上の分布
+        true_dist: 条件が真のときに用いる分布
+        false_dist: 条件が偽のときに用いる分布
+
+    Returns:
+        混合分布 P(cond=1)*true_dist + P(cond=0)*false_dist
+
+    Examples:
+        >>> cond = geq(x, threshold)
+        >>> result = condition(cond, high_value, low_value)
+    """
     return Condition.apply(cond_dist, true_dist, false_dist)

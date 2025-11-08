@@ -191,6 +191,18 @@ class Argmax:
         return np.clip(cdf_values, 0, 1)
 
 
-def argmax_distribution(distributions: List[Dist], joint_samples: Optional[np.ndarray] = None) -> Dist:
-    """便利関数：argmax分布を計算"""
+def argmax(distributions: List[Dist], joint_samples: Optional[np.ndarray] = None) -> Dist:
+    """便利関数：argmax分布を計算
+
+    Args:
+        distributions: 分布のリスト
+        joint_samples: 依存する入力サンプル (n, k)
+
+    Returns:
+        最大値を取るインデックスの分布（離散分布）
+
+    Examples:
+        >>> noisy_values = [add(v, Laplace(b=1).to_dist()) for v in values]
+        >>> winner = argmax(noisy_values)
+    """
     return Argmax.apply(distributions, joint_samples=joint_samples)

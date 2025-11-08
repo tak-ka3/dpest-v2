@@ -3,7 +3,7 @@
 from typing import List
 
 from ..core import Dist
-from ..engine import vector_add
+from ..operations import vector_add
 from ..noise import create_laplace_noise
 from .registry import auto_dist
 
