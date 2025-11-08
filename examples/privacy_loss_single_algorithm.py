@@ -27,6 +27,7 @@ from dpest.algorithms import (
     svt5,
     svt6,
     numerical_svt,
+    noisy_max_sum,
 )
 from dpest.utils.input_patterns import generate_patterns
 from dpest.mechanisms.prefix_sum import PrefixSum
@@ -72,6 +73,7 @@ INPUT_SIZES = {
     "OneTimeRAPPOR": 1,
     "RAPPOR": 1,
     "TruncatedGeometric": 5,
+    "NoisyMaxSum": 20,
 }
 
 IDEAL_EPS = {
@@ -95,6 +97,7 @@ IDEAL_EPS = {
     "OneTimeRAPPOR": 0.8,
     "RAPPOR": 0.4,
     "TruncatedGeometric": 0.12,
+    "NoisyMaxSum": float("inf"),
 }
 
 
@@ -199,6 +202,7 @@ ALGORITHM_HANDLERS: Dict[str, AlgorithmHandler] = {
         lambda: TruncatedGeometricMechanism(eps=0.1, n=5),
         pairs_factory=_truncated_pairs,
     ),
+    "NoisyMaxSum": _make_dist_handler(noisy_max_sum),
 }
 
 
