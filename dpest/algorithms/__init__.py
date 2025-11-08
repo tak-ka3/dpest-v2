@@ -21,6 +21,7 @@ from .laplace_vec import laplace_vec
 from .laplace_parallel import laplace_parallel
 from .one_time_rappor import one_time_rappor
 from .rappor import rappor
+from .noisy_max_sum import noisy_max_sum
 from .registry import get_registered_dist_functions
 
 __all__ = [
@@ -30,6 +31,7 @@ __all__ = [
     'report_noisy_max3', 'report_noisy_max4',
     'laplace_vec', 'laplace_parallel',
     'one_time_rappor', 'rappor',
+    'noisy_max_sum',
 ]
 
 # Automatically expose all auto-generated dist functions (e.g., svt1_dist)
