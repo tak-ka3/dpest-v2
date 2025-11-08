@@ -3,9 +3,8 @@
 from typing import List
 
 from ..core import Dist
-from ..engine import vector_add, vector_max
+from ..operations import vector_add, vector_max, add
 from ..noise import create_laplace_noise
-from ..operations import add
 from .registry import auto_dist
 
 

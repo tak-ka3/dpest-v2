@@ -3,7 +3,7 @@
 from typing import List
 
 from ..core import Dist
-from ..engine import vector_add, vector_argmax
+from ..operations import vector_add, vector_argmax
 from ..noise import create_exponential_noise
 from .registry import auto_dist
 

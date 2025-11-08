@@ -30,7 +30,7 @@ def svt1(queries: List[Dist], eps: float = 0.1, t: float = 0.5, c: int = 1) -> L
         queries: クエリ結果の分布のリスト
         eps: プライバシーパラメータ（デフォルト: 0.1）
         t: 閾値（デフォルト: 1.0）
-        c: 最大出力回数（cutoff、デフォルト: 2）
+        c: 最大出力回数（cutoff、デフォルト: 1）
 
     Returns:
         各クエリに対する出力分布のリスト

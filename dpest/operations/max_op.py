@@ -396,11 +396,41 @@ class Min:
         return result
 
 
-def max_distribution(distributions: List[Dist], joint_samples: Optional[np.ndarray] = None) -> Dist:
-    """便利関数：max分布を計算"""
+def max_op(distributions: List[Dist], joint_samples: Optional[np.ndarray] = None) -> Dist:
+    """便利関数：max分布を計算
+
+    Args:
+        distributions: 分布のリスト
+        joint_samples: 依存する入力サンプル (n, k)
+
+    Returns:
+        最大値の分布
+
+    Examples:
+        >>> noisy_values = [add(v, Laplace(b=1).to_dist()) for v in values]
+        >>> maximum = max_op(noisy_values)
+
+    Note:
+        Python組み込みの `max()` と衝突を避けるため `max_op()` という名前を使用しています。
+    """
     return Max.apply(distributions, joint_samples=joint_samples)
 
 
-def min_distribution(distributions: List[Dist], joint_samples: Optional[np.ndarray] = None) -> Dist:
-    """便利関数：min分布を計算"""
+def min_op(distributions: List[Dist], joint_samples: Optional[np.ndarray] = None) -> Dist:
+    """便利関数：min分布を計算
+
+    Args:
+        distributions: 分布のリスト
+        joint_samples: 依存する入力サンプル (n, k)
+
+    Returns:
+        最小値の分布
+
+    Examples:
+        >>> noisy_values = [add(v, Laplace(b=1).to_dist()) for v in values]
+        >>> minimum = min_op(noisy_values)
+
+    Note:
+        Python組み込みの `min()` と衝突を避けるため `min_op()` という名前を使用しています。
+    """
     return Min.apply(distributions, joint_samples=joint_samples)

@@ -21,9 +21,13 @@ from .operations import (
     Compare,
     Condition,
     TruncatedGeometric,
-    max_distribution,
-    min_distribution,
-    argmax_distribution,
+    max_op,
+    min_op,
+    argmax,
+    vector_add,
+    vector_argmax,
+    vector_max,
+    vector_min,
 )
 
 
@@ -531,25 +535,5 @@ def Exponential_dist(b: float, size: int = None) -> Union[Dist, List[Dist]]:
     return create_exponential_noise(b=b, size=size)
 
 
-def vector_add(x_list: List[Dist], y_list: Union[List[Dist], Dist]) -> List[Dist]:
-    """ベクトル（またはスカラー）加算を行うヘルパー"""
-    if isinstance(y_list, Dist):
-        return [Add.apply(x, y_list) for x in x_list]
-    if len(x_list) != len(y_list):
-        raise ValueError("Vector lengths must match")
-    return [Add.apply(x, y) for x, y in zip(x_list, y_list)]
-
-
-def vector_argmax(distributions: List[Dist]) -> Dist:
-    """ベクトルのargmaxを計算（アルゴリズム記述用）"""
-    return argmax_distribution(distributions)
-
-
-def vector_max(distributions: List[Dist]) -> Dist:
-    """ベクトルのmaxを計算（アルゴリズム記述用）"""
-    return max_distribution(distributions)
-
-
-def vector_min(distributions: List[Dist]) -> Dist:
-    """ベクトルのminを計算（アルゴリズム記述用）"""
-    return min_distribution(distributions)
+# vector_add, vector_argmax, vector_max, vector_min are now imported from operations module
+# These were previously defined here but have been moved to operations.vector_ops for better organization

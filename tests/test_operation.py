@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import numpy as np
 from dpest.core import Dist
 from dpest.operations import (
-    max_distribution, min_distribution, argmax_distribution,
+    max_op, min_op, argmax,
     add, affine,
     prefix_sum_distributions, sampled_distribution
 )
@@ -39,8 +39,8 @@ def test_argmax_operations():
         print(f"-- pattern: {name} --")
         dists_a = [Dist.deterministic(float(v)) for v in a]
         dists_ap = [Dist.deterministic(float(v)) for v in a_prime]
-        res_a = argmax_distribution(dists_a)
-        res_ap = argmax_distribution(dists_ap)
+        res_a = argmax(dists_a)
+        res_ap = argmax(dists_ap)
         print(f"  a  argmax: {[(int(v), p) for v, p in res_a.atoms]}")
         print(f"  a' argmax: {[(int(v), p) for v, p in res_ap.atoms]}")
         eps = estimate_privacy_loss(res_a, res_ap)
@@ -57,10 +57,10 @@ def test_max_min_operations():
         print(f"-- pattern: {name} --")
         dists_a = [Dist.deterministic(float(v)) for v in a]
         dists_ap = [Dist.deterministic(float(v)) for v in a_prime]
-        max_a = max_distribution(dists_a)
-        max_ap = max_distribution(dists_ap)
-        min_a = min_distribution(dists_a)
-        min_ap = min_distribution(dists_ap)
+        max_a = max_op(dists_a)
+        max_ap = max_op(dists_ap)
+        min_a = min_op(dists_a)
+        min_ap = min_op(dists_ap)
         max_val_a = max_a.atoms[0][0] if max_a.atoms else None
         max_val_ap = max_ap.atoms[0][0] if max_ap.atoms else None
         min_val_a = min_a.atoms[0][0] if min_a.atoms else None
@@ -87,8 +87,8 @@ def test_continuous_operations():
     print(f"ラプラス分布2: 格子点数={len(lap2.density['x'])}, 総質量={lap2.total_mass():.6f}")
     
     # Max計算
-    max_result = max_distribution([lap1, lap2])
-    max_result_shift = max_distribution([lap1, lap2_shift])
+    max_result = max_op([lap1, lap2])
+    max_result_shift = max_op([lap1, lap2_shift])
     print(f"Max結果: 格子点数={len(max_result.density['x'])}, 総質量={max_result.total_mass():.6f}")
     
     # 平均値の近似計算
@@ -206,15 +206,15 @@ def test_noisy_argmax_vs_noisy_max():
         noisy_dists_prime.append(add(x_dist_p, noise_dist))
 
     # Argmax計算
-    argmax_result = argmax_distribution(noisy_dists)
-    argmax_result_prime = argmax_distribution(noisy_dists_prime)
+    argmax_result = argmax(noisy_dists)
+    argmax_result_prime = argmax(noisy_dists_prime)
     print(f"ノイズ付きargmax分布: {[(int(v), f'{p:.3f}') for v, p in argmax_result.atoms]}")
     eps_argmax = estimate_privacy_loss(argmax_result, argmax_result_prime)
     print(f"  argmax推定ε: {eps_argmax:.3f}")
 
     # Max計算
-    max_result = max_distribution(noisy_dists)
-    max_result_prime = max_distribution(noisy_dists_prime)
+    max_result = max_op(noisy_dists)
+    max_result_prime = max_op(noisy_dists_prime)
     x_grid = max_result.density['x']
     f_grid = max_result.density['f']
     dx = max_result.density['dx']

@@ -20,7 +20,7 @@ NAN = float('nan')
 
 
 @auto_dist()
-def svt2(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int = 2) -> List[Dist]:
+def svt2(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int = 1) -> List[Dist]:
     """
     SVT2アルゴリズムの分布ベース実装
 
@@ -28,7 +28,7 @@ def svt2(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int = 2) -> L
         queries: クエリ結果の分布のリスト
         eps: プライバシーパラメータ（デフォルト: 0.1）
         t: 閾値（デフォルト: 1.0）
-        c: 最大出力回数（cutoff、デフォルト: 2）
+        c: 最大出力回数（cutoff、デフォルト: 1）
 
     Returns:
         各クエリに対する出力分布のリスト

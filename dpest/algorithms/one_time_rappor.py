@@ -10,7 +10,7 @@ except ModuleNotFoundError:  # pragma: no cover - optional
     mmh3 = None
 
 from ..core import Dist
-from ..operations import Condition
+from ..operations import condition
 from ._helpers import expect_single_value
 from .registry import auto_dist
 
@@ -36,11 +36,11 @@ def one_time_rappor(
     cond_flip = Dist.from_atoms([(1.0, 0.5), (0.0, 0.5)])
     bit_one = Dist.deterministic(1.0)
     bit_zero = Dist.deterministic(0.0)
-    random_bit = Condition.apply(cond_flip, bit_one, bit_zero)
+    random_bit = condition(cond_flip, bit_one, bit_zero)
 
     dists: List[Dist] = []
     for bit in filter_bits:
         base = Dist.deterministic(float(bit))
-        perm = Condition.apply(cond_randomize, random_bit, base)
+        perm = condition(cond_randomize, random_bit, base)
         dists.append(perm)
     return dists

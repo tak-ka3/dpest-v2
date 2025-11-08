@@ -17,7 +17,7 @@ from .registry import auto_dist
 
 
 @auto_dist()
-def svt5(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int = 2) -> List[Dist]:
+def svt5(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int = 1) -> List[Dist]:
     """
     SVT5アルゴリズムの分布ベース実装
 
