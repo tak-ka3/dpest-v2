@@ -28,6 +28,7 @@ from dpest.algorithms import (
     svt6,
     numerical_svt,
     noisy_max_sum,
+    truncated_geometric,
 )
 from dpest.utils.input_patterns import generate_patterns
 from dpest.mechanisms.prefix_sum import PrefixSum
@@ -73,6 +74,7 @@ INPUT_SIZES = {
     "OneTimeRAPPOR": 1,
     "RAPPOR": 1,
     "TruncatedGeometric": 5,
+    "TruncatedGeometricAlgo": 1,
     "NoisyMaxSum": 20,
 }
 
@@ -97,6 +99,7 @@ IDEAL_EPS = {
     "OneTimeRAPPOR": 0.8,
     "RAPPOR": 0.4,
     "TruncatedGeometric": 0.12,
+    "TruncatedGeometricAlgo": 0.12,
     "NoisyMaxSum": float("inf"),
 }
 
@@ -122,7 +125,7 @@ def _make_dist_handler(
     pairs_factory: Callable[[int], PairList] = _default_pairs,
 ) -> AlgorithmHandler:
     dist_func = _resolve_dist_func(algo_or_dist)
-    def handler(name: str, n: int, n_samples: int, hist_bins: int) -> float:
+    def handler(name: str, n: int, n_samples: int, hist_bins: int, visualize_histogram: bool = False) -> float:
         pairs = pairs_factory(n)
         return estimate_algorithm(
             name,
@@ -130,6 +133,7 @@ def _make_dist_handler(
             dist_func=dist_func,
             n_samples=n_samples,
             hist_bins=hist_bins,
+            visualize_histogram=visualize_histogram,
         )
 
     return handler
@@ -140,7 +144,7 @@ def _make_mechanism_handler(
     *,
     pairs_factory: Callable[[int], PairList] = _default_pairs,
 ) -> AlgorithmHandler:
-    def handler(name: str, n: int, n_samples: int, hist_bins: int) -> float:
+    def handler(name: str, n: int, n_samples: int, hist_bins: int, visualize_histogram: bool = False) -> float:
         pairs = pairs_factory(n)
         mechanism = mechanism_factory()
         return estimate_algorithm(
@@ -149,6 +153,7 @@ def _make_mechanism_handler(
             mechanism=mechanism,
             n_samples=n_samples,
             hist_bins=hist_bins,
+            visualize_histogram=visualize_histogram,
         )
 
     return handler
@@ -174,6 +179,12 @@ _TRUNCATED_GEOMETRIC_PAIRS: PairList = [
 
 def _truncated_pairs(_: int) -> PairList:
     return [(pair[0].copy(), pair[1].copy()) for pair in _TRUNCATED_GEOMETRIC_PAIRS]
+
+
+def _truncated_geometric_dist(data: np.ndarray, eps: float):  # pragma: no cover
+    """Wrapper for truncated_geometric algorithm."""
+    dist_func = _resolve_dist_func(truncated_geometric)
+    return dist_func(data, eps=eps, n=INPUT_SIZES["TruncatedGeometricAlgo"])
 
 
 ALGORITHM_HANDLERS: Dict[str, AlgorithmHandler] = {
@@ -202,11 +213,14 @@ ALGORITHM_HANDLERS: Dict[str, AlgorithmHandler] = {
         lambda: TruncatedGeometricMechanism(eps=0.1, n=5),
         pairs_factory=_truncated_pairs,
     ),
+    "TruncatedGeometricAlgo": _make_dist_handler(
+        _truncated_geometric_dist, pairs_factory=_truncated_pairs
+    ),
     "NoisyMaxSum": _make_dist_handler(noisy_max_sum),
 }
 
 
-def compute_epsilon(name: str, *, n_samples: int, hist_bins: int) -> float:
+def compute_epsilon(name: str, *, n_samples: int, hist_bins: int, visualize_histogram: bool = False) -> float:
     """Estimate privacy loss for a single algorithm."""
     if name not in INPUT_SIZES:
         raise ValueError(f"Unknown algorithm: {name}")
@@ -215,7 +229,7 @@ def compute_epsilon(name: str, *, n_samples: int, hist_bins: int) -> float:
     if handler is None:
         raise ValueError(f"Unsupported algorithm: {name}")
 
-    return handler(name, INPUT_SIZES[name], n_samples, hist_bins)
+    return handler(name, INPUT_SIZES[name], n_samples, hist_bins, visualize_histogram)
 
 
 def main():
@@ -228,6 +242,11 @@ def main():
         default=DEFAULT_CONFIG_PATH,
         help="JSON config path containing 'n_samples' and 'hist_bins'.",
     )
+    parser.add_argument(
+        "--visualize-histogram",
+        action="store_true",
+        help="Visualize histogram binning strategy and statistics",
+    )
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -235,14 +254,15 @@ def main():
         args.algorithm,
         n_samples=config["n_samples"],
         hist_bins=config["hist_bins"],
+        visualize_histogram=args.visualize_histogram,
     )
     ideal = IDEAL_EPS.get(args.algorithm)
     size = INPUT_SIZES.get(args.algorithm)
     if ideal is not None:
         ideal_disp = "∞" if math.isinf(ideal) else f"{ideal:.2f}"
-        print(f"{args.algorithm} (n={size}): ε ≈ {eps:.4f} (ideal {ideal_disp})")
+        print(f"\n{args.algorithm} (n={size}): ε ≈ {eps:.4f} (ideal {ideal_disp})")
     else:
-        print(f"{args.algorithm} (n={size}): ε ≈ {eps:.4f}")
+        print(f"\n{args.algorithm} (n={size}): ε ≈ {eps:.4f}")
 
 
 if __name__ == "__main__":

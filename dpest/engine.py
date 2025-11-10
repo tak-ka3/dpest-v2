@@ -17,10 +17,8 @@ from .operations import (
     Min,
     Argmax,
     PrefixSum,
-    Sampled,
     Compare,
     Condition,
-    TruncatedGeometric,
     max_op,
     min_op,
     argmax,
@@ -53,8 +51,6 @@ class Engine:
             'Compare': Compare,
             'Condition': Condition,
             'PrefixSum': PrefixSum,
-            'Sampled': Sampled,
-            'TruncatedGeometric': TruncatedGeometric,
         }
         # サンプリングモードで使用するサンプル数
         self.default_sampling_samples = 100
@@ -167,7 +163,6 @@ class Engine:
         ベクトル化により複数サンプルを同時生成して高速化します。
         """
         import numpy as np
-        from .operations import Sampled
 
         print("Executing algorithm in sampling mode...")
 
@@ -426,16 +421,25 @@ class Engine:
             sample_array = sample_function_vectorized(n_samples)
         print(f"Generated sample array with shape {sample_array.shape}")
 
-        # 既存のサンプル配列から分布を構築（重複実行を回避）
-        result = Sampled.from_samples(sample_array, bins=100)
-
-        # 結合分布用にサンプル配列も保存
-        if isinstance(result, list):
-            for dist in result:
+        # サンプル配列から軽量なDistオブジェクトを構築
+        # Note: サンプリングモードでは _joint_samples のみがε計算に使われるため、
+        # atoms/density は最小限のダミーで良い
+        if sample_array.ndim == 1:
+            # 1次元の場合: ダミーのDistを1つ作成
+            result = Dist.from_atoms([(0.0, 1.0)])  # ダミーatom
+            result._joint_samples = sample_array.reshape(-1, 1)
+            result._joint_samples_column = 0
+        else:
+            # 多次元の場合: 各列に対してダミーのDistを作成
+            result = []
+            for i in range(sample_array.shape[1]):
+                dist = Dist.from_atoms([(0.0, 1.0)])  # ダミーatom
                 dist._joint_samples = sample_array
-        elif isinstance(result, Dist):
-            result._joint_samples = sample_array
+                dist._joint_samples_column = i
+                result.append(dist)
 
+        print("Constructed distribution from samples: ", result)
+        print("samle_arary:", sample_array)  # Debug print
         return result
 
     def compile(self, algo_func: Callable) -> Callable:

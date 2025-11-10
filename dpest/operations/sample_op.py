@@ -38,6 +38,8 @@ class Sampled:
         Args:
             samples: サンプル配列 (n_samples,) または (n_samples, k)
             bins: 連続値の場合のヒストグラム分割数。
+                  Note: ε計算では _joint_samples が使われるため、
+                  bins はデバッグ/可視化用途のみ。
 
         Returns:
             Dist または Dist のリスト。
@@ -119,7 +121,9 @@ class Sampled:
                         center = (edges[i] + edges[i+1]) / 2
                         atoms.append((center, hist[i] / total))
                 atoms.append((float('nan'), nan_prob))
-                return Dist.from_atoms(atoms)
+                dist = Dist.from_atoms(atoms)
+                print("Constructed Dist with NaN handling:", dist)  # Debug print
+                return dist
         else:
             # NaNを含まない場合（既存のロジック）
             unique_vals = np.unique(samples)

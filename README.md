@@ -78,9 +78,50 @@ PYTHONPATH=. pytest
 
 ## 実行例
 
+### 基本的な実行
+
 SVT1 の ε を推定する例:
 
 ```bash
 PYTHONPATH=. python examples/privacy_loss_single_algorithm.py SVT1 \
   --config examples/privacy_loss_single_config.json
 ```
+
+### ヒストグラム可視化
+
+SVT3など混合分布（整数値・浮動小数点値・NaN）を含むアルゴリズムでは、`--visualize-histogram` オプションでビニング戦略と統計を確認できます:
+
+```bash
+PYTHONPATH=. python examples/privacy_loss_single_algorithm.py SVT3 \
+  --config examples/privacy_loss_single_config.json \
+  --visualize-histogram
+```
+
+出力例:
+```
+======================================================================
+Mixed Histogram Binning Visualization
+======================================================================
+
+Total dimensions: 10
+Bins per dimension: [11, 2, 2, 11, 1, 1, 1, 1, 1, 1]
+
+--- Dimension 0 ---
+  Total samples: 200000
+  NaN count: 0
+  Integer values: 0
+  Float values: 200000
+    Range: [2.521, 5.489]
+  Bins allocated: 11  (NaN + 10個の連続ビン)
+
+--- Dimension 1 ---
+  Total samples: 200000
+  NaN count: 0
+  Integer values: 200000
+    Unique integers: [-1000.]
+  Float values: 0
+  Bins allocated: 2  (NaN + 1個の整数ビン)
+...
+```
+
+詳細は `HISTOGRAM_VISUALIZATION.md` を参照してください。

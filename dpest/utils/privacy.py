@@ -91,7 +91,7 @@ def epsilon_from_list(P_list: List[Dist], Q_list: List[Dist]) -> float:
     return sum(epsilon_from_dist(P, Q) for P, Q in zip(P_list, Q_list))
 
 
-def epsilon_from_list_joint(P_list: List[Dist], Q_list: List[Dist], bins: int = 100) -> float:
+def epsilon_from_list_joint(P_list: List[Dist], Q_list: List[Dist], bins: int = 100, verbose: bool = False) -> float:
     """Compute privacy loss using joint distribution of output vectors.
 
     This function is more accurate than epsilon_from_list() for algorithms
@@ -102,6 +102,7 @@ def epsilon_from_list_joint(P_list: List[Dist], Q_list: List[Dist], bins: int = 
         P_list: List of output distributions for dataset D
         Q_list: List of output distributions for dataset D'
         bins: Number of bins for histogram (if needed)
+        verbose: If True, print histogram visualization
 
     Returns:
         Estimated epsilon using joint distribution
@@ -112,7 +113,7 @@ def epsilon_from_list_joint(P_list: List[Dist], Q_list: List[Dist], bins: int = 
         # Use the saved joint samples
         P_samples = P_list[0]._joint_samples
         Q_samples = Q_list[0]._joint_samples
-        return epsilon_from_samples_matrix(P_samples, Q_samples, bins=bins)
+        return epsilon_from_samples_matrix(P_samples, Q_samples, bins=bins, verbose=verbose)
     else:
         # Fallback to marginal composition
         import warnings
@@ -177,14 +178,321 @@ def epsilon_from_samples(P: np.ndarray, Q: np.ndarray, bins: int = 50) -> float:
     return float("inf")
 
 
-def epsilon_from_samples_matrix(P: np.ndarray, Q: np.ndarray, bins: int = 100) -> float:
+def create_mixed_histogram_bins(
+    samples: np.ndarray,
+    n_bins: int,
+    discrete_threshold: int = 10
+) -> tuple:
+    """各次元のビニング関数を作成（整数・浮動小数点・NaN対応）
+
+    Args:
+        samples: (n_samples, n_dims) サンプル配列
+        n_bins: 連続値（非整数）用のビン数
+        discrete_threshold: 使用されない（互換性のため残す）
+
+    Returns:
+        (bin_functions, n_bins_per_dim): 各次元のビニング関数とビン数
+
+    ビニング戦略:
+        - NaN: bin 0
+        - 整数値: 各整数に個別のビン（bin 1, 2, ...）
+        - 非整数の浮動小数点値: 範囲を分割してヒストグラム化
+    """
+    n_dims = samples.shape[1]
+    bin_functions = []
+    n_bins_per_dim = []
+
+    for dim in range(n_dims):
+        col = samples[:, dim]
+
+        # NaN以外の値を抽出
+        non_nan = col[~np.isnan(col)]
+
+        if len(non_nan) == 0:
+            # 全てNaNの場合
+            def bin_func_all_nan(x):
+                return 0 if math.isnan(x) else -1
+            bin_functions.append(bin_func_all_nan)
+            n_bins_per_dim.append(1)
+            continue
+
+        # 整数値と非整数値を分離
+        is_integer = np.mod(non_nan, 1) == 0
+        integer_vals = non_nan[is_integer]
+        float_vals = non_nan[~is_integer]
+
+        unique_integers = np.unique(integer_vals) if len(integer_vals) > 0 else np.array([])
+        has_floats = len(float_vals) > 0
+
+        if not has_floats:
+            # 整数値のみの場合（例: -1000, 0, 1など）
+            discrete_vals = list(unique_integers)
+
+            def make_discrete_binner(vals):
+                def binner(x):
+                    if math.isnan(x):
+                        return 0  # NaN専用ビン
+                    try:
+                        return vals.index(x) + 1  # 整数値ビン (1-indexed)
+                    except ValueError:
+                        # 未知の整数値は最後のビンへ
+                        return len(vals)
+                return binner
+
+            bin_functions.append(make_discrete_binner(discrete_vals))
+            n_bins_per_dim.append(len(discrete_vals) + 1)  # NaN + 整数値
+
+        elif len(unique_integers) == 0:
+            # 非整数の浮動小数点値のみの場合（例: 3.521, 4.123など）
+            min_val = float_vals.min()
+            max_val = float_vals.max()
+
+            # ビンの境界を計算
+            if max_val == min_val:
+                edges = [min_val - 0.5, min_val + 0.5]
+            else:
+                edges = np.linspace(min_val, max_val, n_bins + 1)
+
+            def make_continuous_binner(edges_copy):
+                def binner(x):
+                    if math.isnan(x):
+                        return 0  # NaN専用ビン
+                    bin_id = np.digitize(x, edges_copy, right=False)
+                    bin_id = max(1, min(bin_id, len(edges_copy)))
+                    return bin_id  # 1-indexed (0 is for NaN)
+                return binner
+
+            bin_functions.append(make_continuous_binner(edges))
+            n_bins_per_dim.append(n_bins + 1)  # NaN + 連続ビン
+
+        else:
+            # 整数値と非整数値の両方がある場合（混合）
+            discrete_vals = list(unique_integers)
+            min_val = float_vals.min()
+            max_val = float_vals.max()
+
+            # ビンの境界を計算
+            if max_val == min_val:
+                edges = [min_val - 0.5, min_val + 0.5]
+            else:
+                edges = np.linspace(min_val, max_val, n_bins + 1)
+
+            num_discrete_bins = len(discrete_vals)
+
+            def make_mixed_binner(int_vals, edges_copy, offset):
+                def binner(x):
+                    if math.isnan(x):
+                        return 0  # NaN専用ビン
+                    # 整数値チェック
+                    if x % 1 == 0:
+                        try:
+                            return int_vals.index(x) + 1  # 整数ビン (1-indexed)
+                        except ValueError:
+                            # 未知の整数値は最後の整数ビンへ
+                            return len(int_vals)
+                    else:
+                        # 非整数値は連続ビン
+                        bin_id = np.digitize(x, edges_copy, right=False)
+                        bin_id = max(1, min(bin_id, len(edges_copy)))
+                        return offset + bin_id  # 整数ビンの後ろに配置
+                return binner
+
+            bin_functions.append(make_mixed_binner(discrete_vals, edges, num_discrete_bins))
+            n_bins_per_dim.append(1 + num_discrete_bins + n_bins)  # NaN + 整数 + 連続
+
+    return bin_functions, n_bins_per_dim
+
+
+def samples_to_bin_ids(
+    samples: np.ndarray,
+    bin_functions: List
+) -> np.ndarray:
+    """サンプル配列をビンIDの配列に変換
+
+    Args:
+        samples: (n_samples, n_dims) サンプル配列
+        bin_functions: 各次元のビニング関数
+
+    Returns:
+        bin_ids: (n_samples, n_dims) ビンIDの配列
+    """
+    n_samples, n_dims = samples.shape
+    bin_ids = np.zeros((n_samples, n_dims), dtype=int)
+
+    for dim in range(n_dims):
+        for i in range(n_samples):
+            bin_ids[i, dim] = bin_functions[dim](samples[i, dim])
+
+    return bin_ids
+
+
+def build_joint_histogram(
+    bin_ids: np.ndarray,
+    n_bins_per_dim: List[int] = None
+) -> dict:
+    """ビンIDから同時ヒストグラムを構築
+
+    Args:
+        bin_ids: (n_samples, n_dims) ビンID配列
+        n_bins_per_dim: 各次元のビン数（現在は未使用、将来の拡張用）
+
+    Returns:
+        histogram: {tuple(bin_ids): count}
+    """
+    histogram = {}
+    for row in bin_ids:
+        key = tuple(row)
+        histogram[key] = histogram.get(key, 0) + 1
+    return histogram
+
+
+def epsilon_from_mixed_samples(
+    P: np.ndarray,
+    Q: np.ndarray,
+    n_bins: int = 100,
+    discrete_threshold: int = 10,
+    verbose: bool = False
+) -> float:
+    """混合分布（離散値 + 連続値 + NaN）からε推定
+
+    Args:
+        P: データセットDの出力サンプル (n_samples, n_dims)
+        Q: データセットD'の出力サンプル (n_samples, n_dims)
+        n_bins: 連続値用のビン数
+        discrete_threshold: この数以下のユニーク値なら離散として扱う
+        verbose: Trueの場合、ヒストグラム情報を出力
+
+    Returns:
+        推定されたε値
+    """
+    # 1. 両方のデータを結合してビニング戦略を決定
+    combined = np.vstack([P, Q])
+    bin_functions, n_bins_per_dim = create_mixed_histogram_bins(
+        combined, n_bins, discrete_threshold
+    )
+
+    if verbose:
+        print("\n" + "=" * 70)
+        print("Mixed Histogram Binning Visualization")
+        print("=" * 70)
+        print(f"\nTotal dimensions: {len(n_bins_per_dim)}")
+        print(f"Bins per dimension: {n_bins_per_dim}")
+
+        # 各次元の詳細を表示
+        for dim in range(min(len(n_bins_per_dim), 10)):  # 最大10次元まで表示
+            col = combined[:, dim]
+            non_nan = col[~np.isnan(col)]
+            is_integer = np.mod(non_nan, 1) == 0
+            integer_vals = non_nan[is_integer]
+            float_vals = non_nan[~is_integer]
+
+            print(f"\n--- Dimension {dim} ---")
+            print(f"  Total samples: {len(col)}")
+            print(f"  NaN count: {np.sum(np.isnan(col))}")
+            print(f"  Integer values: {len(integer_vals)}")
+            if len(integer_vals) > 0:
+                unique_ints = np.unique(integer_vals)
+                print(f"    Unique integers: {unique_ints[:5]}{'...' if len(unique_ints) > 5 else ''}")
+            print(f"  Float values: {len(float_vals)}")
+            if len(float_vals) > 0:
+                print(f"    Range: [{float_vals.min():.3f}, {float_vals.max():.3f}]")
+            print(f"  Bins allocated: {n_bins_per_dim[dim]}")
+
+    # 2. サンプルをビンIDに変換
+    P_bins = samples_to_bin_ids(P, bin_functions)
+    Q_bins = samples_to_bin_ids(Q, bin_functions)
+
+    # 3. ヒストグラム構築
+    P_hist = build_joint_histogram(P_bins, n_bins_per_dim)
+    Q_hist = build_joint_histogram(Q_bins, n_bins_per_dim)
+
+    if verbose:
+        print("\n" + "=" * 70)
+        print("Histogram Statistics")
+        print("=" * 70)
+        print(f"\nP (dataset D):")
+        print(f"  Total samples: {len(P)}")
+        print(f"  Unique patterns: {len(P_hist)}")
+
+        print(f"\nQ (dataset D'):")
+        print(f"  Total samples: {len(Q)}")
+        print(f"  Unique patterns: {len(Q_hist)}")
+
+        common_patterns = set(P_hist.keys()) & set(Q_hist.keys())
+        print(f"\nCommon patterns: {len(common_patterns)}")
+
+        # ビンID説明
+        print(f"\nBin ID interpretation:")
+        print(f"  bin 0: NaN")
+        print(f"  bin 1+: Integer values (discrete) or continuous range bins")
+        print(f"  Example: (42, 0, 0, ...) means Dim0=bin42, Dim1=NaN, Dim2=NaN, ...")
+
+        # Top patterns
+        print(f"\nTop 10 patterns in P (by count):")
+        sorted_p = sorted(P_hist.items(), key=lambda x: x[1], reverse=True)
+        for i, (pattern, count) in enumerate(sorted_p[:10]):
+            prob = count / len(P)
+            # パターンを短縮表示
+            pattern_str = str(pattern) if len(pattern) <= 5 else f"{pattern[:5]}..."
+            print(f"  {i+1:2d}. {pattern_str:40s} count={count:5d} prob={prob:.4f}")
+
+        print(f"\nTop 10 patterns in Q (by count):")
+        sorted_q = sorted(Q_hist.items(), key=lambda x: x[1], reverse=True)
+        for i, (pattern, count) in enumerate(sorted_q[:10]):
+            prob = count / len(Q)
+            pattern_str = str(pattern) if len(pattern) <= 5 else f"{pattern[:5]}..."
+            print(f"  {i+1:2d}. {pattern_str:40s} count={count:5d} prob={prob:.4f}")
+
+    # 4. ε計算
+    all_bins = set(P_hist.keys()) | set(Q_hist.keys())
+    ratios: List[float] = []
+
+    n_p = len(P)
+    n_q = len(Q)
+
+    for bin_key in all_bins:
+        p_count = P_hist.get(bin_key, 0)
+        q_count = Q_hist.get(bin_key, 0)
+        p_prob = p_count / n_p
+        q_prob = q_count / n_q
+
+        if p_prob > 0 and q_prob > 0:
+            ratios.append(p_prob / q_prob)
+            ratios.append(q_prob / p_prob)
+
+    if verbose:
+        print("\n" + "=" * 70)
+        print("Epsilon Calculation")
+        print("=" * 70)
+        if ratios:
+            max_ratio = max(ratios)
+            epsilon_val = np.log(max_ratio)
+            print(f"\nMax probability ratio: {max_ratio:.4f}")
+            print(f"Estimated epsilon: {epsilon_val:.4f}")
+        else:
+            print("\nNo common patterns found (epsilon = inf)")
+        print("=" * 70 + "\n")
+
+    if ratios:
+        return float(np.log(max(ratios)))
+    return float("inf")
+
+
+def epsilon_from_samples_matrix(P: np.ndarray, Q: np.ndarray, bins: int = 100, verbose: bool = False) -> float:
     """Estimate ε from samples of vector-valued distributions.
 
-    Instead of summing privacy losses for each coordinate independently, this
-    function treats each sample as a whole vector and constructs a joint
-    histogram (multi-dimensional) over the vectors.  The privacy loss is then
-    evaluated based on the probability (or density) of each bin in this joint
-    histogram.
+    Supports mixed distributions with discrete values (including NaN) and continuous values.
+    Uses adaptive histogram binning that treats discrete values as separate bins
+    and continuous values with histogram discretization.
+
+    Args:
+        P: Samples from distribution P (n_samples, n_dims)
+        Q: Samples from distribution Q (n_samples, n_dims)
+        bins: Number of bins for continuous values
+        verbose: If True, print histogram visualization
+
+    Returns:
+        Estimated epsilon value
     """
     P = np.asarray(P)
     Q = np.asarray(Q)
@@ -192,54 +500,5 @@ def epsilon_from_samples_matrix(P: np.ndarray, Q: np.ndarray, bins: int = 100) -
     if P.ndim == 1:
         return epsilon_from_samples(P, Q, bins)
 
-    combined = np.vstack([P, Q])
-    has_nan = np.isnan(combined).any()
-
-    unique_rows: List[np.ndarray] = []
-    seen_patterns = set()
-    for row in combined:
-        mask = np.isnan(row)
-        key = (tuple(mask.tolist()), tuple(np.where(mask, 0.0, row).tolist()))
-        if key not in seen_patterns:
-            seen_patterns.add(key)
-            unique_rows.append(row)
-
-    if has_nan or len(unique_rows) <= bins:
-        ratios: List[float] = []
-        for row in unique_rows:
-            p_mask = np.all(
-                np.where(np.isnan(row), np.isnan(P), P == row),
-                axis=1,
-            )
-            q_mask = np.all(
-                np.where(np.isnan(row), np.isnan(Q), Q == row),
-                axis=1,
-            )
-            p_val = np.mean(p_mask)
-            q_val = np.mean(q_mask)
-            if p_val > 0 and q_val > 0:
-                ratios.append(p_val / q_val)
-                ratios.append(q_val / p_val)
-        if ratios:
-            return float(np.log(max(ratios)))
-        return float("inf")
-
-    dim = P.shape[1]
-    if bins ** dim > 1_000_000:
-        return float(sum(epsilon_from_samples(P[:, i], Q[:, i], bins) for i in range(dim)))
-
-    ranges = [
-        (min(P[:, d].min(), Q[:, d].min()), max(P[:, d].max(), Q[:, d].max()))
-        for d in range(dim)
-    ]
-    p_hist, _ = np.histogramdd(P, bins=bins, range=ranges, density=True)
-    q_hist, _ = np.histogramdd(Q, bins=bins, range=ranges, density=True)
-
-    ratios: List[float] = []
-    for p_val, q_val in zip(p_hist.ravel(), q_hist.ravel()):
-        if p_val > 1e-12 and q_val > 1e-12:
-            ratios.append(p_val / q_val)
-            ratios.append(q_val / p_val)
-    if ratios:
-        return float(np.log(max(ratios)))
-    return float("inf")
+    # 混合ヒストグラム法を使用（離散値・連続値・NaN対応）
+    return epsilon_from_mixed_samples(P, Q, n_bins=bins, discrete_threshold=10, verbose=verbose)

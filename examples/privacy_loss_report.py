@@ -16,6 +16,7 @@ from dpest.algorithms import (
     laplace_vec,
     noisy_hist1,
     noisy_hist2,
+    noisy_max_sum,
     numerical_svt,
     one_time_rappor,
     rappor,
@@ -103,6 +104,7 @@ def main():
         "OneTimeRAPPOR": 1,
         "RAPPOR": 1,
         "TruncatedGeometric": 5,
+        "NoisyMaxSum": 20,
     }
 
     ideal_eps: Dict[str, Optional[float]] = {
@@ -126,6 +128,7 @@ def main():
         "OneTimeRAPPOR": 0.8,
         "RAPPOR": 0.4,
         "TruncatedGeometric": 0.12,
+        "NoisyMaxSum": float("inf"),
     }
 
     results: List[Tuple[str, int, float]] = []
@@ -274,6 +277,14 @@ def main():
             mechanism=TruncatedGeometricMechanism(eps=0.1, n=5),
             **common_kwargs,
         ),
+    ))
+
+    # NoisyMaxSum
+    noisy_max_sum_pairs = generate_change_one_pairs(input_sizes["NoisyMaxSum"])
+    results.append((
+        "NoisyMaxSum",
+        input_sizes["NoisyMaxSum"],
+        estimate_algorithm("NoisyMaxSum", noisy_max_sum_pairs, dist_func=_resolve_dist_func(noisy_max_sum), **common_kwargs),
     ))
 
     # レポート出力
