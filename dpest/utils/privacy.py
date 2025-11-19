@@ -17,6 +17,19 @@ from ..core import Dist
 
 def epsilon_from_dist(P: Dist, Q: Dist) -> float:
     """Compute privacy loss ``ε`` between two distributions."""
+    # Check if distributions have joint samples (sampling mode)
+    if (hasattr(P, '_joint_samples') and P._joint_samples is not None and
+        hasattr(Q, '_joint_samples') and Q._joint_samples is not None):
+        # Use sampling-based epsilon estimation
+        P_samples = P._joint_samples[:, P._joint_samples_column] if hasattr(P, '_joint_samples_column') else P._joint_samples.flatten()
+        Q_samples = Q._joint_samples[:, Q._joint_samples_column] if hasattr(Q, '_joint_samples_column') else Q._joint_samples.flatten()
+        return epsilon_from_samples_matrix(
+            P_samples.reshape(-1, 1),
+            Q_samples.reshape(-1, 1),
+            bins=100,
+            verbose=False
+        )
+
     if P.atoms and Q.atoms:
         max_ratio = 0.0
         for p_val, p_prob in P.atoms:
@@ -385,18 +398,6 @@ def epsilon_from_mixed_samples(
             is_integer = np.mod(non_nan, 1) == 0
             integer_vals = non_nan[is_integer]
             float_vals = non_nan[~is_integer]
-
-            print(f"\n--- Dimension {dim} ---")
-            print(f"  Total samples: {len(col)}")
-            print(f"  NaN count: {np.sum(np.isnan(col))}")
-            print(f"  Integer values: {len(integer_vals)}")
-            if len(integer_vals) > 0:
-                unique_ints = np.unique(integer_vals)
-                print(f"    Unique integers: {unique_ints[:5]}{'...' if len(unique_ints) > 5 else ''}")
-            print(f"  Float values: {len(float_vals)}")
-            if len(float_vals) > 0:
-                print(f"    Range: [{float_vals.min():.3f}, {float_vals.max():.3f}]")
-            print(f"  Bins allocated: {n_bins_per_dim[dim]}")
 
     # 2. サンプルをビンIDに変換
     P_bins = samples_to_bin_ids(P, bin_functions)

@@ -164,8 +164,6 @@ class Engine:
         """
         import numpy as np
 
-        print("Executing algorithm in sampling mode...")
-
         def sample_function_vectorized(n):
             """
             ベクトル化されたサンプリング: n個のサンプルを同時生成
@@ -416,10 +414,8 @@ class Engine:
         if sampler is not None and raw_input is not None:
             sample_array = np.asarray(sampler(raw_input, n_samples))
         else:
-            print("Generating samples by executing the algorithm...")
             # ベクトル化サンプリングを試行
             sample_array = sample_function_vectorized(n_samples)
-        print(f"Generated sample array with shape {sample_array.shape}")
 
         # サンプル配列から軽量なDistオブジェクトを構築
         # Note: サンプリングモードでは _joint_samples のみがε計算に使われるため、
@@ -438,8 +434,6 @@ class Engine:
                 dist._joint_samples_column = i
                 result.append(dist)
 
-        print("Constructed distribution from samples: ", result)
-        print("samle_arary:", sample_array)  # Debug print
         return result
 
     def compile(self, algo_func: Callable) -> Callable:

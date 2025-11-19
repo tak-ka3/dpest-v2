@@ -77,6 +77,10 @@ def parse_args() -> argparse.Namespace:
 
 def main():
     args = parse_args()
+
+    # シード値を設定して再現性を確保（サンプリングモードのアルゴリズム用）
+    np.random.seed(42)
+
     config = load_config(args.config)
     common_kwargs = {
         "n_samples": config["n_samples"],

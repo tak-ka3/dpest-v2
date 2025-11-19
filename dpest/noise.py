@@ -201,3 +201,133 @@ def create_exponential_noise(b: float, size: int = None) -> Union[Dist, List[Dis
     """指数ノイズ分布を作成"""
     exp = Exponential(b=b, size=size)
     return exp.to_dist()
+
+
+class Uniform:
+    """離散一様分布
+
+    整数区間 [low, high] 上の一様分布
+    各整数値が等確率 1/(high-low+1) で発生
+    """
+
+    def __init__(self, low: int, high: int, size: Union[int, None] = None):
+        """
+        Args:
+            low: 下限（含む）
+            high: 上限（含む）
+            size: ベクトルサイズ（Noneの場合はスカラー）
+        """
+        if low > high:
+            raise ValueError(f"low must be <= high, got low={low}, high={high}")
+
+        self.low = int(low)
+        self.high = int(high)
+        self.size = size
+
+    def to_dist(self) -> Union[Dist, List[Dist]]:
+        """一様分布をDist形式に変換
+
+        Returns:
+            Dist: スカラーの場合
+            List[Dist]: ベクトルの場合
+
+        Note:
+            依存性追跡とu範囲情報は自動的に設定されます。
+            ユーザーはこれらを意識する必要がありません。
+        """
+        n = self.high - self.low + 1
+        prob = 1.0 / n
+        atoms = [(float(i), prob) for i in range(self.low, self.high + 1)]
+
+        if self.size is None:
+            def sampler(n_samples, low=self.low, high=self.high):
+                return np.random.randint(low, high + 1, (n_samples, 1)).astype(float)
+
+            dist = Dist(
+                atoms=atoms,
+                sampler=sampler,
+                sampler_index=0,
+                skip_validation=True
+            )
+
+            # sample_funcを設定（キャッシュ対応）
+            def sample_func(cache, low=self.low, high=self.high):
+                _ = cache  # キャッシュは依存性追跡のため渡されるが、一様分布では使用しない
+                return float(np.random.randint(low, high + 1))
+            dist._sample_func = sample_func
+
+            node = Node(op='Uniform', inputs=[], dependencies=set(dist.dependencies))
+            dist.node = node
+
+            # 一様分布の場合、各値がどのu範囲で発生するかを自動設定
+            # これにより、truncated_geometricなどで条件付き確率を正しく計算できる
+            dist._u_ranges = {}
+            for i in range(self.low, self.high + 1):
+                # 各値iは、u=iの時にのみ発生（離散一様分布）
+                # ただし、実際の使用では範囲として扱う
+                dist._u_ranges[float(i)] = (i, i)
+
+            # 一様分布全体の範囲も記録
+            dist._u_low = self.low
+            dist._u_high = self.high
+
+            dist.normalize()
+            return dist
+        else:
+            dists = []
+            for _ in range(self.size):
+                def sampler(n_samples, low=self.low, high=self.high):
+                    return np.random.randint(low, high + 1, (n_samples, 1)).astype(float)
+
+                dist = Dist(
+                    atoms=atoms,
+                    sampler=sampler,
+                    sampler_index=0,
+                    skip_validation=True
+                )
+
+                def sample_func_vec(cache, low=self.low, high=self.high):
+                    _ = cache  # キャッシュは依存性追跡のため渡されるが、一様分布では使用しない
+                    return float(np.random.randint(low, high + 1))
+                dist._sample_func = sample_func_vec
+
+                node = Node(op='Uniform', inputs=[], dependencies=set(dist.dependencies))
+                dist.node = node
+
+                # ベクトル版も同様にu範囲情報を設定
+                dist._u_ranges = {}
+                for i in range(self.low, self.high + 1):
+                    dist._u_ranges[float(i)] = (i, i)
+                dist._u_low = self.low
+                dist._u_high = self.high
+
+                dist.normalize()
+                dists.append(dist)
+            return dists
+
+    def sample(self, n: int = 1) -> np.ndarray:
+        """サンプリング（テスト用）"""
+        if self.size is None:
+            return np.random.randint(self.low, self.high + 1, n).astype(float)
+        else:
+            return np.random.randint(self.low, self.high + 1, (n, self.size)).astype(float)
+
+    def __repr__(self):
+        size_str = f", size={self.size}" if self.size is not None else ""
+        return f"Uniform(low={self.low}, high={self.high}{size_str})"
+
+
+def create_uniform_noise(low: int, high: int, size: int = None) -> Union[Dist, List[Dist]]:
+    """便利関数：離散一様分布を作成
+
+    Args:
+        low: 下限（含む）
+        high: 上限（含む）
+        size: ベクトルサイズ（Noneの場合はスカラー）
+
+    Returns:
+        Dist: スカラーの場合
+        List[Dist]: ベクトルの場合
+    """
+    uniform = Uniform(low=low, high=high, size=size)
+    return uniform.to_dist()

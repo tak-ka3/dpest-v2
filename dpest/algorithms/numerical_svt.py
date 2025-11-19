@@ -12,7 +12,7 @@ NumericalSVTの特徴: TRUEの時にノイズ付きクエリ値を出力
 from typing import List
 from ..core import Dist
 from ..noise import Laplace
-from ..operations import add, affine, mux, geq
+from ..operations import add, affine, branch, geq
 from .registry import auto_dist
 
 # センチネル値
@@ -56,14 +56,14 @@ def numerical_svt(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int 
         noisy_Q_out = add(Q, lap_rho3)
 
         # TRUEならノイズ付きクエリ値、FALSEなら0.0
-        output_val = mux(over, noisy_Q_out, 0.0)
+        output_val = branch(over, noisy_Q_out, 0.0)
 
         # 打ち切り後はNANを出力
-        out_i = mux(broken, NAN, output_val)
+        out_i = branch(broken, NAN, output_val)
         result.append(out_i)
 
         # カウンタを更新（打ち切り後は加算しない）
-        inc = mux(broken, 0, over)
+        inc = branch(broken, 0, over)
         count = add(count, inc)
         broken = geq(count, c)
 

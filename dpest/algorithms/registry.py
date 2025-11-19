@@ -21,6 +21,52 @@ from ..engine import compile
 _DIST_FUNCTIONS: Dict[str, Callable[..., Sequence[Dist]]] = {}
 
 
+def _resample_distribution(dist: Dist, n_samples: int = 100000) -> Dist:
+    """
+    Resample a distribution using its _sample_func to get accurate probabilities
+    when analytical computation with dependencies is not possible.
+
+    Args:
+        dist: Distribution with _sample_func defined
+        n_samples: Number of samples to draw
+
+    Returns:
+        New distribution with probabilities estimated from samples
+    """
+    if not hasattr(dist, '_sample_func'):
+        # Cannot resample without a sample function
+        return dist
+
+    # Draw samples
+    samples = []
+    for _ in range(n_samples):
+        cache = {}  # Fresh cache for each sample
+        sample = dist._sample(cache)
+        samples.append(sample)
+
+    samples = np.array(samples)
+
+    # Estimate probabilities from samples
+    unique_values, counts = np.unique(samples, return_counts=True)
+    atoms = [(float(v), float(c) / n_samples) for v, c in zip(unique_values, counts)]
+
+    # Create new distribution
+    from ..core import Node
+    result = Dist(
+        atoms=atoms,
+        dependencies=dist.dependencies,
+        node=Node(op='Resampled', inputs=[dist.node] if dist.node else [],
+                 dependencies=set(dist.dependencies), needs_sampling=False),
+        skip_validation=True
+    )
+
+    # Copy the sample function
+    result._sample_func = dist._sample_func
+    result.normalize()
+
+    return result
+
+
 def _materialize_queries(data: Any) -> List[Dist]:
     """
     Convert various input formats into deterministic ``Dist`` objects.
@@ -49,6 +95,10 @@ def auto_dist(name: str | None = None) -> Callable[[Callable[..., Sequence[Dist]
             ...
 
     The generated wrapper is named ``<algo_name>_dist`` unless a custom ``name`` is provided.
+
+    Additionally, this decorator wraps the original function to check if the result
+    needs sampling (when dependencies cannot be resolved analytically) and automatically
+    falls back to sampling-based computation.
     """
 
     def decorator(algo_fn: Callable[..., Sequence[Dist]]):
@@ -69,7 +119,21 @@ def auto_dist(name: str | None = None) -> Callable[[Callable[..., Sequence[Dist]
         _DIST_FUNCTIONS[dist_name] = dist_func
         setattr(algo_fn, "_dist_func", dist_func)
         setattr(algo_fn, "_dist_name", dist_name)
-        return algo_fn
+
+        # Wrap the original function to check for needs_sampling
+        @wraps(algo_fn)
+        def wrapped_algo_fn(*args, **kwargs):
+            result = algo_fn(*args, **kwargs)
+
+            # Check if the result needs sampling
+            if isinstance(result, Dist) and hasattr(result, 'node') and result.node:
+                if result.node.needs_sampling:
+                    # Fall back to sampling-based computation
+                    return _resample_distribution(result, n_samples=100000)
+
+            return result
+
+        return wrapped_algo_fn
 
     return decorator
 

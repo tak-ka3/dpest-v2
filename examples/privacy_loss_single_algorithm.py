@@ -43,11 +43,11 @@ DEFAULT_CONFIG_PATH = os.path.join(
 
 
 def load_config(path: str | None) -> dict:
-    config = {"n_samples": 100_000, "hist_bins": 100}
+    config = {"n_samples": 100_000, "hist_bins": 100, "seed": 42}
     if path and os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        for key in ("n_samples", "hist_bins"):
+        for key in ("n_samples", "hist_bins", "seed"):
             if key in data:
                 config[key] = int(data[key])
     return config
@@ -247,7 +247,16 @@ def main():
         action="store_true",
         help="Visualize histogram binning strategy and statistics",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for reproducibility (default: 42)",
+    )
     args = parser.parse_args()
+
+    # シード値を設定して再現性を確保
+    np.random.seed(args.seed)
 
     config = load_config(args.config)
     eps = compute_epsilon(
