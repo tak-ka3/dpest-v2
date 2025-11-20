@@ -8,7 +8,7 @@ except ModuleNotFoundError:  # pragma: no cover - optional
     mmh3 = None
 
 from ..core import Dist
-from ..operations import condition
+from ..operations import branch
 from .one_time_rappor import one_time_rappor
 from .registry import auto_dist
 
@@ -31,6 +31,6 @@ def rappor(
     dist_if_zero = Dist.from_atoms([(1.0, p), (0.0, 1.0 - p)])
     dists: List[Dist] = []
     for perm in perm_dists:
-        final = condition(perm, dist_if_one, dist_if_zero)
+        final = branch(perm, dist_if_one, dist_if_zero)
         dists.append(final)
     return dists

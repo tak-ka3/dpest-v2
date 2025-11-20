@@ -12,7 +12,7 @@ SVT2の特徴: 閾値を各TRUEの後に再サンプリング
 from typing import List
 from ..core import Dist
 from ..noise import Laplace
-from ..operations import add, affine, mux, geq
+from ..operations import add, affine, branch, geq
 from .registry import auto_dist
 
 # NANセンチネル値
@@ -56,7 +56,7 @@ def svt2(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int = 1) -> L
         over = geq(noisy_Q, T)
 
         # 打ち切り後はNANを出力
-        out_i = mux(broken, NAN, over)
+        out_i = branch(broken, NAN, over)
         result.append(out_i)
 
         # TRUEの時に閾値を再サンプリング
@@ -64,10 +64,10 @@ def svt2(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int = 1) -> L
         new_lap_T = Laplace(b=c/eps1).to_dist()
         new_T = affine(new_lap_T, 1.0, t)
         # overが1（TRUE）の時だけ新しい閾値を使用
-        T = mux(over, new_T, T)
+        T = branch(over, new_T, T)
 
         # カウンタを更新（打ち切り後は加算しない）
-        inc = mux(broken, 0, over)
+        inc = branch(broken, 0, over)
         count = add(count, inc)
         broken = geq(count, c)
 

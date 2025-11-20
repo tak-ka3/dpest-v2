@@ -28,8 +28,10 @@ def estimate_algorithm(
     extra: Optional[Iterable] = None,
     verbose: bool = False,
     hist_bins: int = 100,
+    visualize_histogram: bool = False,
 ) -> float:
     """Estimate privacy loss for an algorithm over given adjacency pairs."""
+    print(f"[estimate_algorithm] Estimating privacy loss for {name}...")
 
     eps_max = 0.0
     if n_samples is not None:
@@ -41,7 +43,12 @@ def estimate_algorithm(
             f"joint_dist_func={joint_dist_func}, dist_func={dist_func}, mechanism={mechanism}"
         )
 
-    for D, Dp in pairs:
+    for pair_idx, (D, Dp) in enumerate(pairs):
+        if visualize_histogram:
+            print(f"\n{'='*70}")
+            print(f"Processing pair {pair_idx + 1}/{len(pairs)}")
+            print(f"{'='*70}")
+
         if joint_dist_func is not None:
             args = (D, eps) if extra is None else (D, eps, *extra)
             P = joint_dist_func(*args)
@@ -51,11 +58,14 @@ def estimate_algorithm(
         elif dist_func is not None:
             args = (D, eps) if extra is None else (D, eps, *extra)
             P = dist_func(*args)
-            print("P:", P)  # Debug print
+            if verbose:
+                print("P:", P)  # Debug print
             args_prime = (Dp, eps) if extra is None else (Dp, eps, *extra)
             Q = dist_func(*args_prime)
+            if verbose:
+                print("Q:", Q)  # Debug print
             if isinstance(P, list):
-                eps_val = epsilon_from_list_joint(P, Q, bins=hist_bins)
+                eps_val = epsilon_from_list_joint(P, Q, bins=hist_bins, verbose=visualize_histogram)
             else:
                 eps_val = epsilon_from_dist(P, Q)
         else:
@@ -63,7 +73,10 @@ def estimate_algorithm(
                 raise ValueError("mechanism or dist_func must be provided")
             P_samples = mechanism.m(D, n_samples)
             Q_samples = mechanism.m(Dp, n_samples)
-            eps_val = epsilon_from_samples_matrix(P_samples, Q_samples, bins=hist_bins)
+            eps_val = epsilon_from_samples_matrix(P_samples, Q_samples, bins=hist_bins, verbose=visualize_histogram)
+
+        if visualize_histogram or verbose:
+            print(f"\nPair {pair_idx + 1} epsilon: {eps_val:.4f}")
 
         eps_max = max(eps_max, eps_val)
 

@@ -12,7 +12,7 @@ SVT4の特徴: 各クエリにノイズを追加（eps1=eps/4, eps2=eps-eps1, sc
 from typing import List
 from ..core import Dist
 from ..noise import Laplace
-from ..operations import add, affine, mux, geq
+from ..operations import add, affine, branch, geq
 from .registry import auto_dist
 
 # NANセンチネル値
@@ -56,11 +56,11 @@ def svt4(queries: List[Dist], eps: float = 0.1, t: float = 1.0, c: int = 1) -> L
         over = geq(noisy_Q, T)
 
         # 打ち切り後はNANを出力
-        out_i = mux(broken, NAN, over)
+        out_i = branch(broken, NAN, over)
         result.append(out_i)
 
         # カウンタを更新（打ち切り後は加算しない）
-        inc = mux(broken, 0, over)
+        inc = branch(broken, 0, over)
         count = add(count, inc)
         broken = geq(count, c)
 

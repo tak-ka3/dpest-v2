@@ -22,6 +22,7 @@ from .laplace_parallel import laplace_parallel
 from .one_time_rappor import one_time_rappor
 from .rappor import rappor
 from .noisy_max_sum import noisy_max_sum
+from .truncated_geometric import truncated_geometric
 from .registry import get_registered_dist_functions
 
 __all__ = [
@@ -32,6 +33,7 @@ __all__ = [
     'laplace_vec', 'laplace_parallel',
     'one_time_rappor', 'rappor',
     'noisy_max_sum',
+    'truncated_geometric',
 ]
 
 # Automatically expose all auto-generated dist functions (e.g., svt1_dist)
