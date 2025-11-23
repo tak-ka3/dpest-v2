@@ -3,6 +3,7 @@ import json
 import math
 import os
 import sys
+import time
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -135,168 +136,142 @@ def main():
         "NoisyMaxSum": float("inf"),
     }
 
-    results: List[Tuple[str, int, float]] = []
+    results: List[Tuple[str, int, float, float]] = []  # (name, size, eps, time)
+
+    def timed_estimate(name, *args, **kwargs):
+        """実行時間を計測しながらε推定を実行"""
+        print(f"Estimating {name}...", end=" ", flush=True)
+        start = time.time()
+        eps_val = estimate_algorithm(*args, **kwargs)
+        elapsed = time.time() - start
+        print(f"Done ({elapsed:.2f}s)")
+        return eps_val, elapsed
 
     # ヒストグラム系
     hist_pairs = generate_hist_pairs(input_sizes["NoisyHist1"])
-    results.append((
-        "NoisyHist1",
-        input_sizes["NoisyHist1"],
-        estimate_algorithm("NoisyHist1", hist_pairs, dist_func=_resolve_dist_func(noisy_hist1), **common_kwargs),
-    ))
-    results.append((
-        "NoisyHist2",
-        input_sizes["NoisyHist2"],
-        estimate_algorithm("NoisyHist2", hist_pairs, dist_func=_resolve_dist_func(noisy_hist2), **common_kwargs),
-    ))
+    eps_val, elapsed = timed_estimate("NoisyHist1", "NoisyHist1", hist_pairs, dist_func=_resolve_dist_func(noisy_hist1), **common_kwargs)
+    results.append(("NoisyHist1", input_sizes["NoisyHist1"], eps_val, elapsed))
+
+    eps_val, elapsed = timed_estimate("NoisyHist2", "NoisyHist2", hist_pairs, dist_func=_resolve_dist_func(noisy_hist2), **common_kwargs)
+    results.append(("NoisyHist2", input_sizes["NoisyHist2"], eps_val, elapsed))
 
     # Report Noisy Max / Laplace 系
     vec_pairs = generate_change_one_pairs(input_sizes["ReportNoisyMax1"])
-    results.append((
-        "ReportNoisyMax1",
-        input_sizes["ReportNoisyMax1"],
-        estimate_algorithm("ReportNoisyMax1", vec_pairs, dist_func=_resolve_dist_func(report_noisy_max1), **common_kwargs),
-    ))
-    results.append((
-        "ReportNoisyMax3",
-        input_sizes["ReportNoisyMax3"],
-        estimate_algorithm("ReportNoisyMax3", vec_pairs, dist_func=_resolve_dist_func(report_noisy_max3), **common_kwargs),
-    ))
-    results.append((
-        "ReportNoisyMax2",
-        input_sizes["ReportNoisyMax2"],
-        estimate_algorithm("ReportNoisyMax2", vec_pairs, dist_func=_resolve_dist_func(report_noisy_max2), **common_kwargs),
-    ))
-    results.append((
-        "ReportNoisyMax4",
-        input_sizes["ReportNoisyMax4"],
-        estimate_algorithm("ReportNoisyMax4", vec_pairs, dist_func=_resolve_dist_func(report_noisy_max4), **common_kwargs),
-    ))
+
+    eps_val, elapsed = timed_estimate("ReportNoisyMax1", "ReportNoisyMax1", vec_pairs, dist_func=_resolve_dist_func(report_noisy_max1), **common_kwargs)
+    results.append(("ReportNoisyMax1", input_sizes["ReportNoisyMax1"], eps_val, elapsed))
+
+    eps_val, elapsed = timed_estimate("ReportNoisyMax3", "ReportNoisyMax3", vec_pairs, dist_func=_resolve_dist_func(report_noisy_max3), **common_kwargs)
+    results.append(("ReportNoisyMax3", input_sizes["ReportNoisyMax3"], eps_val, elapsed))
+
+    eps_val, elapsed = timed_estimate("ReportNoisyMax2", "ReportNoisyMax2", vec_pairs, dist_func=_resolve_dist_func(report_noisy_max2), **common_kwargs)
+    results.append(("ReportNoisyMax2", input_sizes["ReportNoisyMax2"], eps_val, elapsed))
+
+    eps_val, elapsed = timed_estimate("ReportNoisyMax4", "ReportNoisyMax4", vec_pairs, dist_func=_resolve_dist_func(report_noisy_max4), **common_kwargs)
+    results.append(("ReportNoisyMax4", input_sizes["ReportNoisyMax4"], eps_val, elapsed))
 
     laplace_pairs = generate_change_one_pairs(input_sizes["LaplaceMechanism"])
-    results.append((
-        "LaplaceMechanism",
-        input_sizes["LaplaceMechanism"],
-        estimate_algorithm("LaplaceMechanism", laplace_pairs, dist_func=_resolve_dist_func(laplace_vec), **common_kwargs),
-    ))
-    results.append((
+
+    eps_val, elapsed = timed_estimate("LaplaceMechanism", "LaplaceMechanism", laplace_pairs, dist_func=_resolve_dist_func(laplace_vec), **common_kwargs)
+    results.append(("LaplaceMechanism", input_sizes["LaplaceMechanism"], eps_val, elapsed))
+
+    eps_val, elapsed = timed_estimate(
         "LaplaceParallel",
-        input_sizes["LaplaceParallel"],
-        estimate_algorithm(
-            "LaplaceParallel",
-            [laplace_pairs[0]],
-            dist_func=lambda data, eps: _resolve_dist_func(laplace_parallel)(
-                data, 0.005, input_sizes["LaplaceParallel"]
-            ),
-            **common_kwargs,
-        ),
-    ))
+        "LaplaceParallel",
+        [laplace_pairs[0]],
+        dist_func=lambda data, eps: _resolve_dist_func(laplace_parallel)(data, 0.005, input_sizes["LaplaceParallel"]),
+        **common_kwargs,
+    )
+    results.append(("LaplaceParallel", input_sizes["LaplaceParallel"], eps_val, elapsed))
 
     # SVT 系は algorithms ディレクトリの分布実装を使用
     svt_pairs_short = generate_change_one_pairs(input_sizes["SVT1"])
     svt_pairs_long = generate_change_one_pairs(input_sizes["SVT5"])
-    results.append((
-        "SVT1",
-        input_sizes["SVT1"],
-        estimate_algorithm("SVT1", svt_pairs_short, dist_func=_resolve_dist_func(svt1), **common_kwargs),
-    ))
-    results.append((
-        "SVT2",
-        input_sizes["SVT2"],
-        estimate_algorithm("SVT2", svt_pairs_short, dist_func=_resolve_dist_func(svt2), **common_kwargs),
-    ))
-    results.append((
-        "SVT3",
-        input_sizes["SVT3"],
-        estimate_algorithm("SVT3", svt_pairs_short, dist_func=_resolve_dist_func(svt3), **common_kwargs),
-    ))
-    results.append((
-        "SVT4",
-        input_sizes["SVT4"],
-        estimate_algorithm("SVT4", svt_pairs_short, dist_func=_resolve_dist_func(svt4), **common_kwargs),
-    ))
-    results.append((
-        "SVT5",
-        input_sizes["SVT5"],
-        estimate_algorithm("SVT5", svt_pairs_long, dist_func=_resolve_dist_func(svt5), **common_kwargs),
-    ))
-    results.append((
-        "SVT6",
-        input_sizes["SVT6"],
-        estimate_algorithm("SVT6", svt_pairs_long, dist_func=_resolve_dist_func(svt6), **common_kwargs),
-    ))
-    results.append((
+
+    eps_val, elapsed = timed_estimate("SVT1", "SVT1", svt_pairs_short, dist_func=_resolve_dist_func(svt1), **common_kwargs)
+    results.append(("SVT1", input_sizes["SVT1"], eps_val, elapsed))
+
+    eps_val, elapsed = timed_estimate("SVT2", "SVT2", svt_pairs_short, dist_func=_resolve_dist_func(svt2), **common_kwargs)
+    results.append(("SVT2", input_sizes["SVT2"], eps_val, elapsed))
+
+    eps_val, elapsed = timed_estimate("SVT3", "SVT3", svt_pairs_short, dist_func=_resolve_dist_func(svt3), **common_kwargs)
+    results.append(("SVT3", input_sizes["SVT3"], eps_val, elapsed))
+
+    eps_val, elapsed = timed_estimate("SVT4", "SVT4", svt_pairs_short, dist_func=_resolve_dist_func(svt4), **common_kwargs)
+    results.append(("SVT4", input_sizes["SVT4"], eps_val, elapsed))
+
+    eps_val, elapsed = timed_estimate("SVT5", "SVT5", svt_pairs_long, dist_func=_resolve_dist_func(svt5), **common_kwargs)
+    results.append(("SVT5", input_sizes["SVT5"], eps_val, elapsed))
+
+    eps_val, elapsed = timed_estimate("SVT6", "SVT6", svt_pairs_long, dist_func=_resolve_dist_func(svt6), **common_kwargs)
+    results.append(("SVT6", input_sizes["SVT6"], eps_val, elapsed))
+
+    eps_val, elapsed = timed_estimate(
         "NumericalSVT",
-        input_sizes["NumericalSVT"],
-        estimate_algorithm(
-            "NumericalSVT",
-            generate_change_one_pairs(input_sizes["NumericalSVT"]),
-            dist_func=_resolve_dist_func(numerical_svt),
-            **common_kwargs,
-        ),
-    ))
+        "NumericalSVT",
+        generate_change_one_pairs(input_sizes["NumericalSVT"]),
+        dist_func=_resolve_dist_func(numerical_svt),
+        **common_kwargs,
+    )
+    results.append(("NumericalSVT", input_sizes["NumericalSVT"], eps_val, elapsed))
 
     # 機構ベースの推定
-    results.append((
+    eps_val, elapsed = timed_estimate(
         "PrefixSum",
-        input_sizes["PrefixSum"],
-        estimate_algorithm(
-            "PrefixSum",
-            generate_change_one_pairs(input_sizes["PrefixSum"]),
-            mechanism=PrefixSum(eps=0.1),
-            **common_kwargs,
-        ),
-    ))
-    results.append((
+        "PrefixSum",
+        generate_change_one_pairs(input_sizes["PrefixSum"]),
+        mechanism=PrefixSum(eps=0.1),
+        **common_kwargs,
+    )
+    results.append(("PrefixSum", input_sizes["PrefixSum"], eps_val, elapsed))
+
+    eps_val, elapsed = timed_estimate(
         "SVT34Parallel",
-        input_sizes["SVT34Parallel"],
-        estimate_algorithm(
-            "SVT34Parallel",
-            svt_pairs_long,
-            mechanism=SVT34Parallel(eps=0.1),
-            **common_kwargs,
-        ),
-    ))
+        "SVT34Parallel",
+        svt_pairs_long,
+        mechanism=SVT34Parallel(eps=0.1),
+        **common_kwargs,
+    )
+    results.append(("SVT34Parallel", input_sizes["SVT34Parallel"], eps_val, elapsed))
 
     otr_pairs = generate_change_one_pairs(input_sizes["OneTimeRAPPOR"])
-    results.append((
-        "OneTimeRAPPOR",
-        input_sizes["OneTimeRAPPOR"],
-        estimate_algorithm("OneTimeRAPPOR", otr_pairs, dist_func=_resolve_dist_func(one_time_rappor), **common_kwargs),
-    ))
+    eps_val, elapsed = timed_estimate("OneTimeRAPPOR", "OneTimeRAPPOR", otr_pairs, dist_func=_resolve_dist_func(one_time_rappor), **common_kwargs)
+    results.append(("OneTimeRAPPOR", input_sizes["OneTimeRAPPOR"], eps_val, elapsed))
+
     rappor_pairs = generate_change_one_pairs(input_sizes["RAPPOR"])
-    results.append((
-        "RAPPOR",
-        input_sizes["RAPPOR"],
-        estimate_algorithm("RAPPOR", rappor_pairs, dist_func=_resolve_dist_func(rappor), **common_kwargs),
-    ))
+    eps_val, elapsed = timed_estimate("RAPPOR", "RAPPOR", rappor_pairs, dist_func=_resolve_dist_func(rappor), **common_kwargs)
+    results.append(("RAPPOR", input_sizes["RAPPOR"], eps_val, elapsed))
 
     tg_pairs = [(np.array([2]), np.array([1])), (np.array([1]), np.array([0]))]
-    results.append((
+    eps_val, elapsed = timed_estimate(
         "TruncatedGeometric",
-        input_sizes["TruncatedGeometric"],
-        estimate_algorithm(
-            "TruncatedGeometric",
-            tg_pairs,
-            mechanism=TruncatedGeometricMechanism(eps=0.1, n=5),
-            **common_kwargs,
-        ),
-    ))
+        "TruncatedGeometric",
+        tg_pairs,
+        mechanism=TruncatedGeometricMechanism(eps=0.1, n=5),
+        **common_kwargs,
+    )
+    results.append(("TruncatedGeometric", input_sizes["TruncatedGeometric"], eps_val, elapsed))
 
     # NoisyMaxSum
     noisy_max_sum_pairs = generate_change_one_pairs(input_sizes["NoisyMaxSum"])
-    results.append((
-        "NoisyMaxSum",
-        input_sizes["NoisyMaxSum"],
-        estimate_algorithm("NoisyMaxSum", noisy_max_sum_pairs, dist_func=_resolve_dist_func(noisy_max_sum), **common_kwargs),
-    ))
+    eps_val, elapsed = timed_estimate("NoisyMaxSum", "NoisyMaxSum", noisy_max_sum_pairs, dist_func=_resolve_dist_func(noisy_max_sum), **common_kwargs)
+    results.append(("NoisyMaxSum", input_sizes["NoisyMaxSum"], eps_val, elapsed))
 
     # レポート出力
+    print("\n" + "="*70)
+    print("Privacy Loss Report")
+    print("="*70 + "\n")
+
     with open("docs/privacy_loss_report.md", "w") as f:
         f.write("# Privacy Loss Report\n\n")
-        f.write("| Algorithm | Input size | Estimated ε | Ideal ε |\n")
-        f.write("|-----------|------------|-------------|---------|\n")
-        for name, size, eps_val in results:
+        f.write("## Configuration\n\n")
+        f.write(f"- **n_samples**: {config['n_samples']:,}\n")
+        f.write(f"- **hist_bins**: {config['hist_bins']}\n")
+        f.write(f"- **seed**: 42\n\n")
+        f.write("## Results\n\n")
+        f.write("| Algorithm | Input size | Estimated ε | Ideal ε | Time (s) |\n")
+        f.write("|-----------|------------|-------------|---------|----------|\n")
+        for name, size, eps_val, elapsed in results:
             ideal = ideal_eps.get(name)
             if ideal is None:
                 ideal_str = "N/A"
@@ -304,15 +279,20 @@ def main():
                 ideal_str = "∞"
             else:
                 ideal_str = f"{ideal:.2f}"
-            f.write(f"| {name} | {size} | {eps_val:.4f} | {ideal_str} |\n")
+            f.write(f"| {name} | {size} | {eps_val:.4f} | {ideal_str} | {elapsed:.2f} |\n")
 
-    for name, size, eps_val in results:
+    for name, size, eps_val, elapsed in results:
         ideal = ideal_eps.get(name)
         if ideal is None:
-            print(f"{name} (n={size}): ε ≈ {eps_val:.4f}")
+            print(f"{name} (n={size}): ε ≈ {eps_val:.4f}, time: {elapsed:.2f}s")
         else:
             ideal_display = "∞" if math.isinf(ideal) else f"{ideal:.2f}"
-            print(f"{name} (n={size}): ε ≈ {eps_val:.4f} (ideal {ideal_display})")
+            print(f"{name} (n={size}): ε ≈ {eps_val:.4f} (ideal {ideal_display}), time: {elapsed:.2f}s")
+
+    total_time = sum(elapsed for _, _, _, elapsed in results)
+    print(f"\n{'='*70}")
+    print(f"Total execution time: {total_time:.2f} seconds ({total_time/60:.2f} minutes)")
+    print(f"{'='*70}")
 
 
 if __name__ == "__main__":
