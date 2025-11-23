@@ -119,13 +119,30 @@ class Engine:
             self._analyze_node(result.node)
             mode = 'sampling' if getattr(result.node, 'needs_sampling', False) else 'analytic'
         elif isinstance(result, list) and len(result) > 0 and hasattr(result[0], 'node'):
-            # リストの場合は最初の要素をチェック（簡易実装）
+            # リストの場合は各要素のノードを解析
             for r in result:
                 if hasattr(r, 'node'):
                     self._analyze_node(r.node)
-            # いずれかがサンプリング必要なら全体もサンプリング
-            mode = 'sampling' if any(getattr(r.node, 'needs_sampling', False)
-                                     for r in result if hasattr(r, 'node')) else 'analytic'
+
+            # 個別要素がサンプリング必要かチェック
+            needs_sampling_individually = any(getattr(r.node, 'needs_sampling', False)
+                                              for r in result if hasattr(r, 'node'))
+
+            # リスト要素間の依存関係をチェック（SVT5/SVT6のような共通依存性を検出）
+            needs_sampling_cross_deps = False
+            if not needs_sampling_individually:
+                all_deps = [getattr(r, 'dependencies', set()) for r in result]
+                # リストの任意の2要素間で依存関係の重なりをチェック
+                for i in range(len(all_deps)):
+                    for j in range(i + 1, len(all_deps)):
+                        if all_deps[i] & all_deps[j]:
+                            # 共通依存あり → サンプリングモード
+                            needs_sampling_cross_deps = True
+                            break
+                    if needs_sampling_cross_deps:
+                        break
+
+            mode = 'sampling' if (needs_sampling_individually or needs_sampling_cross_deps) else 'analytic'
         else:
             mode = 'analytic'
 
