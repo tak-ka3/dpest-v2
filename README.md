@@ -151,6 +151,7 @@ Bins per dimension: [11, 2, 2, 11, 1, 1, 1, 1, 1, 1]
 
 - **[Argmax演算の計算量](docs/ARGMAX_COMPLEXITY.md)**: Argmax演算がO(n²·g²)になる理由と最適化の考察
 - **[グリッド統一問題](docs/GRID_ALIGNMENT.md)**: 異なる入力間での確率分布グリッドの統一方法
+- **[ε=∞の検出](docs/EPSILON_INFINITY_DETECTION.md)**: 排他的ビンによる無限大プライバシー損失の検出方法
 - **[TruncatedGeometric解説](docs/TruncatedGeometric_EXPLANATION.md)**: Truncated Geometric機構の詳細実装
 - **[プライバシー損失レポート](docs/privacy_loss_report.md)**: 各アルゴリズムのε推定結果
 - **[コード概要](docs/code_overview.md)**: コードベースの全体構造
