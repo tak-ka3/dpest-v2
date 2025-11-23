@@ -125,3 +125,49 @@ Bins per dimension: [11, 2, 2, 11, 1, 1, 1, 1, 1, 1]
 ```
 
 詳細は `HISTOGRAM_VISUALIZATION.md` を参照してください。
+
+## ドキュメント
+
+### 入門ガイド
+
+- **[リポジトリガイド](docs/REPOSITORY_GUIDE.md)**: プロジェクト全体の構成とアーキテクチャの概要
+- **[アルゴリズム実装一覧](docs/ALGORITHMS_REFERENCE.md)**: 実装済みの全18種のアルゴリズム（SVT系、Noisy Max系、RAPPORなど）
+- **[演算リファレンス](docs/OPERATIONS_REFERENCE.md)**: 確率分布演算（Add, Affine, Max, Argmax, Branchなど）の詳細
+
+### 技術仕様
+
+- **[設計ドキュメント](docs/DESIGN.md)**: 各演算の数学的定義と実装仕様
+- **[演算の詳細](docs/OPERATION.md)**: 演算の内部実装とアルゴリズム
+- **[依存関係解析](docs/DEPENDENCY_ANALYSIS.md)**: 依存関係の検出と処理メカニズム
+- **[依存関係設計](docs/DEPENDENCY_DESIGN.md)**: 依存関係システムの設計思想
+
+### 性能と比較
+
+- **[計算量解析](docs/COMPLEXITY_ANALYSIS.md)**: 全演算・アルゴリズムの計算量とボトルネック分析
+- **[解析 vs サンプリング](docs/ANALYTIC_VS_SAMPLING.md)**: 2つのモードの計算量・精度トレードオフと使い分け
+- **[他手法との比較](docs/COMPARISON_WITH_OTHER_METHODS.md)**: StatDP、DP-Finder、CheckDP、DP-Sniperとの詳細比較
+
+### 技術解説
+
+- **[Argmax演算の計算量](docs/ARGMAX_COMPLEXITY.md)**: Argmax演算がO(n²·g²)になる理由と最適化の考察
+- **[グリッド統一問題](docs/GRID_ALIGNMENT.md)**: 異なる入力間での確率分布グリッドの統一方法
+- **[TruncatedGeometric解説](docs/TruncatedGeometric_EXPLANATION.md)**: Truncated Geometric機構の詳細実装
+- **[プライバシー損失レポート](docs/privacy_loss_report.md)**: 各アルゴリズムのε推定結果
+- **[コード概要](docs/code_overview.md)**: コードベースの全体構造
+
+### 推奨読書順序
+
+**初めての方**:
+1. [リポジトリガイド](docs/REPOSITORY_GUIDE.md) - 全体像の把握
+2. [アルゴリズム実装一覧](docs/ALGORITHMS_REFERENCE.md) - 何ができるかを知る
+3. [解析 vs サンプリング](docs/ANALYTIC_VS_SAMPLING.md) - 使い分けを理解
+
+**実装者向け**:
+1. [設計ドキュメント](docs/DESIGN.md) - 演算の数学的基礎
+2. [演算リファレンス](docs/OPERATIONS_REFERENCE.md) - 実装パターン
+3. [依存関係解析](docs/DEPENDENCY_ANALYSIS.md) - 複雑なアルゴリズムの扱い
+
+**研究者向け**:
+1. [他手法との比較](docs/COMPARISON_WITH_OTHER_METHODS.md) - 学術的位置づけ
+2. [計算量解析](docs/COMPLEXITY_ANALYSIS.md) - 理論的性能評価
+3. [グリッド統一問題](docs/GRID_ALIGNMENT.md) - 技術的課題と解決策
