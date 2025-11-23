@@ -457,6 +457,21 @@ def epsilon_from_mixed_samples(
         p_prob = p_count / n_p
         q_prob = q_count / n_q
 
+        # 片方が0、もう片方が非0の場合 → ε=∞
+        if (p_prob > 0 and q_prob == 0) or (p_prob == 0 and q_prob > 0):
+            if verbose:
+                print("\n" + "=" * 70)
+                print("Epsilon Calculation")
+                print("=" * 70)
+                print(f"\nExclusive pattern found:")
+                print(f"  Pattern: {bin_key}")
+                print(f"  P count: {p_count} (prob={p_prob:.6f})")
+                print(f"  Q count: {q_count} (prob={q_prob:.6f})")
+                print(f"\nThis pattern appears in one dataset but not the other.")
+                print(f"Privacy loss: epsilon = inf")
+                print("=" * 70 + "\n")
+            return float("inf")
+
         if p_prob > 0 and q_prob > 0:
             ratios.append(p_prob / q_prob)
             ratios.append(q_prob / p_prob)
