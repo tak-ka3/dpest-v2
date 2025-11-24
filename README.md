@@ -145,6 +145,7 @@ Bins per dimension: [11, 2, 2, 11, 1, 1, 1, 1, 1, 1]
 
 - **[計算量解析](docs/COMPLEXITY_ANALYSIS.md)**: 全演算・アルゴリズムの計算量とボトルネック分析
 - **[解析 vs サンプリング](docs/ANALYTIC_VS_SAMPLING.md)**: 2つのモードの計算量・精度トレードオフと使い分け
+- **[解析モードの優位性](docs/ANALYTIC_MODE_SUPERIORITY.md)**: 実測結果に基づく解析手法の性能分析（100-400倍高速化の理由）
 - **[他手法との比較](docs/COMPARISON_WITH_OTHER_METHODS.md)**: StatDP、DP-Finder、CheckDP、DP-Sniperとの詳細比較
 
 ### 技術解説
