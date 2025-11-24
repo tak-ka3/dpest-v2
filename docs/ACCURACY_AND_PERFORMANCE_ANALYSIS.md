@@ -38,21 +38,25 @@ E_{\text{trunc}} = P(X < x_{\min}) + P(X > x_{\max})
 $$
 
 **Laplace分布の場合**:
+
 $$
 E_{\text{trunc}} = 2 \exp\left(-\frac{|x_{\max} - \mu|}{b}\right)
 $$
 
 dpestでは、Laplace分布のサポート範囲を $[\mu - 7b, \mu + 7b]$ に設定しているため：
+
 $$
 E_{\text{trunc}} = 2e^{-7} \approx 0.0018 \quad (0.18\%)
 $$
 
 **Exponential分布の場合**:
+
 $$
 E_{\text{trunc}} = \exp\left(-\frac{x_{\max}}{\lambda}\right)
 $$
 
 サポート範囲 $[0, 7\lambda]$ で：
+
 $$
 E_{\text{trunc}} = e^{-7} \approx 0.0009 \quad (0.09\%)
 $$
@@ -66,14 +70,17 @@ E_{\text{interp}} = O\left(\Delta x^2 \cdot \left\|\frac{d^2P}{dx^2}\right\|\rig
 $$
 
 **Laplace分布の二階微分の上界**:
+
 $$
 \left|\frac{d^2}{dx^2} \left[\frac{1}{2b}e^{-|x-\mu|/b}\right]\right| \leq \frac{1}{2b^3}
 $$
 
 格子点数 $g=1000$、サポート幅 $14b$ の場合：
+
 $$
 \Delta x = \frac{14b}{1000} = 0.014b
 $$
+
 $$
 E_{\text{interp}} \approx \frac{(0.014b)^2}{2b^3} = \frac{0.000196}{2b} \approx 0.0001/b
 $$
@@ -89,6 +96,7 @@ E_{\text{quad}} = O\left(\Delta x^2 \cdot \left\|\frac{d^2P}{dx^2}\right\| \cdot
 $$
 
 ここで $L$ はサポートの長さ。Laplace分布の場合：
+
 $$
 E_{\text{quad}} \approx \frac{(0.014b)^2 \cdot 14b}{2b^3} = \frac{0.0027}{2b^2} \approx 0.001/b^2
 $$
@@ -104,6 +112,7 @@ E_{\text{total}} \approx 0.0018 + 0.0001/b + 0.001/b^2
 $$
 
 典型的なパラメータ $b=10$ では：
+
 $$
 E_{\text{total}} \approx 0.0018 + 0.00001 + 0.00001 = 0.00182 \quad (0.18\%)
 $$
@@ -161,6 +170,7 @@ T_{\text{Geq}} = O(g^2)
 $$
 
 格子上で二重積分を数値計算。$g=1000$ の場合：
+
 $$
 T_{\text{Geq}} = 10^6 \text{ 演算}
 $$
@@ -201,6 +211,7 @@ $$
 $$
 
 95%信頼区間では：
+
 $$
 |\hat{p} - p| \leq 1.96 \sigma_{\hat{p}} \approx \frac{2}{\sqrt{N}}
 $$
@@ -245,6 +256,7 @@ $$
 $$
 
 $P=Q=0.1$, $N=100,000$ の場合：
+
 $$
 \Delta \varepsilon \approx 2 \times \frac{0.003}{0.1} = 0.06 \quad (6\%)
 $$
@@ -271,23 +283,29 @@ $$
 各サンプルの生成コスト $T_{\text{sample}}$ は、アルゴリズムの構造に依存：
 
 **単純なLaplace機構**:
+
 $$
 T_{\text{sample}} = O(1)
 $$
+
 Box-Muller法やziggurat法で定数時間。
 
 **Argmaxを含むアルゴリズム**:
+
 $$
 T_{\text{sample}} = O(n)
 $$
+
 $n$ 個の値の中から最大値を見つける。
 
 **総計算量**:
+
 $$
 T_{\text{total}} = N \times T_{\text{sample}}
 $$
 
 $N=100,000$, $n=10$ の場合：
+
 $$
 T_{\text{total}} = 100,000 \times 10 = 10^6 \text{ 演算}
 $$
@@ -306,6 +324,7 @@ $$
 - $b_i$: 次元 $i$ のビン数
 
 SVT3（$d=10$, $b_i \approx 10$）の場合：
+
 $$
 T_{\text{histogram}} = 100,000 \times 10 + 10^{10} \approx 10^6 \text{ 演算}
 $$
