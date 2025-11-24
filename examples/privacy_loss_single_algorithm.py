@@ -5,6 +5,7 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import math
+import time
 import numpy as np
 from typing import Any, Callable, Dict, List, Tuple
 
@@ -259,12 +260,20 @@ def main():
     np.random.seed(args.seed)
 
     config = load_config(args.config)
+
+    # 実行時間計測開始
+    start_time = time.time()
+
     eps = compute_epsilon(
         args.algorithm,
         n_samples=config["n_samples"],
         hist_bins=config["hist_bins"],
         visualize_histogram=args.visualize_histogram,
     )
+
+    # 実行時間計測終了
+    elapsed_time = time.time() - start_time
+
     ideal = IDEAL_EPS.get(args.algorithm)
     size = INPUT_SIZES.get(args.algorithm)
     if ideal is not None:
@@ -272,6 +281,9 @@ def main():
         print(f"\n{args.algorithm} (n={size}): ε ≈ {eps:.4f} (ideal {ideal_disp})")
     else:
         print(f"\n{args.algorithm} (n={size}): ε ≈ {eps:.4f}")
+
+    # 実行時間を表示
+    print(f"Execution time: {elapsed_time:.2f} seconds")
 
 
 if __name__ == "__main__":

@@ -78,6 +78,16 @@ def estimate_algorithm(
         if visualize_histogram or verbose:
             print(f"\nPair {pair_idx + 1} epsilon: {eps_val:.4f}")
 
+        # Early return on infinite privacy loss
+        # Since ε = max(ε₁, ε₂, ..., εₙ), if any εᵢ = ∞, then ε = ∞
+        # No need to evaluate remaining pairs
+        import math
+        if math.isinf(eps_val):
+            print(f"[estimate_algorithm] Infinite privacy loss detected at pair {pair_idx + 1}/{len(pairs)}.")
+            if len(pairs) > 1:
+                print(f"[estimate_algorithm] Skipping remaining {len(pairs) - pair_idx - 1} pairs (result is guaranteed to be inf).")
+            return float("inf")
+
         eps_max = max(eps_max, eps_val)
 
     return eps_max
