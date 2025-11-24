@@ -30,11 +30,10 @@ from dpest.algorithms import (
     numerical_svt,
     noisy_max_sum,
     truncated_geometric,
+    prefix_sum,
+    svt34_parallel,
 )
 from dpest.utils.input_patterns import generate_patterns
-from dpest.mechanisms.prefix_sum import PrefixSum
-from dpest.mechanisms.geometric import TruncatedGeometricMechanism
-from dpest.mechanisms.parallel import SVT34Parallel
 
 
 DEFAULT_CONFIG_PATH = os.path.join(
@@ -74,8 +73,7 @@ INPUT_SIZES = {
     "PrefixSum": 10,
     "OneTimeRAPPOR": 1,
     "RAPPOR": 1,
-    "TruncatedGeometric": 5,
-    "TruncatedGeometricAlgo": 1,
+    "TruncatedGeometric": 1,
     "NoisyMaxSum": 20,
 }
 
@@ -100,13 +98,12 @@ IDEAL_EPS = {
     "OneTimeRAPPOR": 0.8,
     "RAPPOR": 0.4,
     "TruncatedGeometric": 0.12,
-    "TruncatedGeometricAlgo": 0.12,
     "NoisyMaxSum": float("inf"),
 }
 
 
 PairList = List[Tuple[np.ndarray, np.ndarray]]
-AlgorithmHandler = Callable[[str, int, int, int], float]
+AlgorithmHandler = Callable[[str, int, int, int, bool], tuple[float, str] | float]
 
 
 def _resolve_dist_func(obj: Callable) -> Callable:
@@ -126,7 +123,7 @@ def _make_dist_handler(
     pairs_factory: Callable[[int], PairList] = _default_pairs,
 ) -> AlgorithmHandler:
     dist_func = _resolve_dist_func(algo_or_dist)
-    def handler(name: str, n: int, n_samples: int, hist_bins: int, visualize_histogram: bool = False) -> float:
+    def handler(name: str, n: int, n_samples: int, hist_bins: int, visualize_histogram: bool = False, return_mode: bool = False) -> tuple[float, str] | float:
         pairs = pairs_factory(n)
         return estimate_algorithm(
             name,
@@ -135,34 +132,22 @@ def _make_dist_handler(
             n_samples=n_samples,
             hist_bins=hist_bins,
             visualize_histogram=visualize_histogram,
+            return_mode=return_mode,
         )
 
     return handler
 
 
-def _make_mechanism_handler(
-    mechanism_factory: Callable[[], Any],
-    *,
-    pairs_factory: Callable[[int], PairList] = _default_pairs,
-) -> AlgorithmHandler:
-    def handler(name: str, n: int, n_samples: int, hist_bins: int, visualize_histogram: bool = False) -> float:
-        pairs = pairs_factory(n)
-        mechanism = mechanism_factory()
-        return estimate_algorithm(
-            name,
-            pairs,
-            mechanism=mechanism,
-            n_samples=n_samples,
-            hist_bins=hist_bins,
-            visualize_histogram=visualize_histogram,
-        )
-
-    return handler
+def _hist_pairs(n: int) -> PairList:
+    """Return only one_above and one_below pairs for histogram algorithms."""
+    patterns = generate_patterns(n)
+    return [patterns["one_above"], patterns["one_below"]]
 
 
 def _laplace_parallel_pairs(_: int) -> PairList:
+    """Return only one_above and one_below pairs for LaplaceParallel."""
     base_patterns = generate_patterns(INPUT_SIZES["LaplaceMechanism"])
-    return [base_patterns["one_above"]]
+    return [base_patterns["one_above"], base_patterns["one_below"]]
 
 
 def _laplace_parallel_dist(
@@ -185,12 +170,12 @@ def _truncated_pairs(_: int) -> PairList:
 def _truncated_geometric_dist(data: np.ndarray, eps: float):  # pragma: no cover
     """Wrapper for truncated_geometric algorithm."""
     dist_func = _resolve_dist_func(truncated_geometric)
-    return dist_func(data, eps=eps, n=INPUT_SIZES["TruncatedGeometricAlgo"])
+    return dist_func(data, eps=eps, n=INPUT_SIZES["TruncatedGeometric"])
 
 
 ALGORITHM_HANDLERS: Dict[str, AlgorithmHandler] = {
-    "NoisyHist1": _make_dist_handler(noisy_hist1),
-    "NoisyHist2": _make_dist_handler(noisy_hist2),
+    "NoisyHist1": _make_dist_handler(noisy_hist1, pairs_factory=_hist_pairs),
+    "NoisyHist2": _make_dist_handler(noisy_hist2, pairs_factory=_hist_pairs),
     "ReportNoisyMax1": _make_dist_handler(report_noisy_max1),
     "ReportNoisyMax2": _make_dist_handler(report_noisy_max2),
     "ReportNoisyMax3": _make_dist_handler(report_noisy_max3),
@@ -205,23 +190,19 @@ ALGORITHM_HANDLERS: Dict[str, AlgorithmHandler] = {
     "SVT4": _make_dist_handler(svt4),
     "SVT5": _make_dist_handler(svt5),
     "SVT6": _make_dist_handler(svt6),
-    "SVT34Parallel": _make_mechanism_handler(lambda: SVT34Parallel(eps=0.1)),
+    "SVT34Parallel": _make_dist_handler(svt34_parallel),
     "NumericalSVT": _make_dist_handler(numerical_svt),
-    "PrefixSum": _make_mechanism_handler(lambda: PrefixSum(eps=0.1)),
+    "PrefixSum": _make_dist_handler(prefix_sum),
     "OneTimeRAPPOR": _make_dist_handler(one_time_rappor),
     "RAPPOR": _make_dist_handler(rappor),
-    "TruncatedGeometric": _make_mechanism_handler(
-        lambda: TruncatedGeometricMechanism(eps=0.1, n=5),
-        pairs_factory=_truncated_pairs,
-    ),
-    "TruncatedGeometricAlgo": _make_dist_handler(
+    "TruncatedGeometric": _make_dist_handler(
         _truncated_geometric_dist, pairs_factory=_truncated_pairs
     ),
     "NoisyMaxSum": _make_dist_handler(noisy_max_sum),
 }
 
 
-def compute_epsilon(name: str, *, n_samples: int, hist_bins: int, visualize_histogram: bool = False) -> float:
+def compute_epsilon(name: str, *, n_samples: int, hist_bins: int, visualize_histogram: bool = False, return_mode: bool = False) -> tuple[float, str] | float:
     """Estimate privacy loss for a single algorithm."""
     if name not in INPUT_SIZES:
         raise ValueError(f"Unknown algorithm: {name}")
@@ -230,7 +211,7 @@ def compute_epsilon(name: str, *, n_samples: int, hist_bins: int, visualize_hist
     if handler is None:
         raise ValueError(f"Unsupported algorithm: {name}")
 
-    return handler(name, INPUT_SIZES[name], n_samples, hist_bins, visualize_histogram)
+    return handler(name, INPUT_SIZES[name], n_samples, hist_bins, visualize_histogram, return_mode)
 
 
 def main():
@@ -264,15 +245,26 @@ def main():
     # 実行時間計測開始
     start_time = time.time()
 
-    eps = compute_epsilon(
+    result = compute_epsilon(
         args.algorithm,
         n_samples=config["n_samples"],
         hist_bins=config["hist_bins"],
         visualize_histogram=args.visualize_histogram,
+        return_mode=True,
     )
+
+    # 結果を展開
+    if isinstance(result, tuple):
+        eps, mode = result
+    else:
+        eps = result
+        mode = "analytic"
 
     # 実行時間計測終了
     elapsed_time = time.time() - start_time
+
+    # モードを日本語に変換
+    mode_str = "サンプリング" if mode == "sampling" else "解析"
 
     ideal = IDEAL_EPS.get(args.algorithm)
     size = INPUT_SIZES.get(args.algorithm)
@@ -282,8 +274,9 @@ def main():
     else:
         print(f"\n{args.algorithm} (n={size}): ε ≈ {eps:.4f}")
 
-    # 実行時間を表示
+    # 実行時間とモードを表示
     print(f"Execution time: {elapsed_time:.2f} seconds")
+    print(f"Computation mode: {mode_str}")
 
 
 if __name__ == "__main__":

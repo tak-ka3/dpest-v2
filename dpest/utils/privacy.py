@@ -123,18 +123,12 @@ def epsilon_from_list_joint(P_list: List[Dist], Q_list: List[Dist], bins: int = 
     # Check if distributions have joint samples attached
     if (len(P_list) > 0 and hasattr(P_list[0], '_joint_samples') and
         len(Q_list) > 0 and hasattr(Q_list[0], '_joint_samples')):
-        # Use the saved joint samples
+        # Use the saved joint samples (sampling mode)
         P_samples = P_list[0]._joint_samples
         Q_samples = Q_list[0]._joint_samples
         return epsilon_from_samples_matrix(P_samples, Q_samples, bins=bins, verbose=verbose)
     else:
-        # Fallback to marginal composition
-        import warnings
-        warnings.warn(
-            "Joint samples not available, falling back to marginal composition. "
-            "For accurate joint distribution estimation, ensure the algorithm uses sampling mode.",
-            UserWarning
-        )
+        # Use marginal composition (analytic mode)
         return epsilon_from_list(P_list, Q_list)
 
 
