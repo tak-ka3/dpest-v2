@@ -19,7 +19,7 @@ $$
 ここで：
 - $g$: 格子点数（デフォルト1000）
 - $\Delta x = \frac{x_{\max} - x_{\min}}{g}$: 格子間隔
-- $p_i$: 格子点 $x_i$ での確率密度（$\sum_i p_i \Delta x = 1$）
+- $p_i$: 格子点 $x_i$ での確率密度（ $\sum_i p_i \Delta x = 1$）
 
 ### 1.2 誤差の理論的分解
 
@@ -29,7 +29,7 @@ $$
 E_{\text{total}} = E_{\text{trunc}} + E_{\text{interp}} + E_{\text{quad}}
 $$
 
-#### 1.2.1 切断誤差（Truncation Error）$E_{\text{trunc}}$
+#### 1.2.1 切断誤差（Truncation Error） $E_{\text{trunc}}$
 
 確率分布のサポートを有限区間 $[x_{\min}, x_{\max}]$ に制限することによる誤差。裾確率（tail probability）に依存：
 
@@ -75,7 +75,7 @@ $$
 \left|\frac{d^2}{dx^2} \left[\frac{1}{2b}e^{-|x-\mu|/b}\right]\right| \leq \frac{1}{2b^3}
 $$
 
-格子点数 $g=1000$、サポート幅 $14b$ の場合：
+格子点数 $g=1000$ 、サポート幅 $14b$ の場合：
 
 $$
 \Delta x = \frac{14b}{1000} = 0.014b
@@ -85,9 +85,9 @@ $$
 E_{\text{interp}} \approx \frac{(0.014b)^2}{2b^3} = \frac{0.000196}{2b} \approx 0.0001/b
 $$
 
-$b=10$ の場合、$E_{\text{interp}} \approx 0.00001$ (0.001%)。
+$b=10$ の場合、 $E_{\text{interp}} \approx 0.00001$ (0.001%)。
 
-#### 1.2.3 数値積分誤差（Quadrature Error）$E_{\text{quad}}$
+#### 1.2.3 数値積分誤差（Quadrature Error） $E_{\text{quad}}$
 
 台形則または矩形則による数値積分の誤差：
 
@@ -101,7 +101,7 @@ $$
 E_{\text{quad}} \approx \frac{(0.014b)^2 \cdot 14b}{2b^3} = \frac{0.0027}{2b^2} \approx 0.001/b^2
 $$
 
-$b=10$ の場合、$E_{\text{quad}} \approx 0.00001$ (0.001%)。
+$b=10$ の場合、 $E_{\text{quad}} \approx 0.00001$ (0.001%)。
 
 ### 1.3 総合誤差の評価
 
@@ -140,7 +140,7 @@ $$
 - 要素ごとの積: $O(g)$
 - 逆FFT: $O(g \log g)$
 
-$g=1000$ の場合、$T_{\text{Add}} \approx 1000 \times 10 = 10^4$ 演算。
+$g=1000$ の場合、 $T_{\text{Add}} \approx 1000 \times 10 = 10^4$ 演算。
 
 #### 1.4.2 Argmax演算（順序統計量）
 
@@ -154,7 +154,7 @@ $$
 1. $n$ 個の分布すべてのペア $(i,j)$ について比較（$\binom{n}{2} = O(n^2)$ ペア）
 2. 各比較で $g \times g$ の格子上で累積分布関数を評価
 
-$n=10$, $g=1000$ の場合：
+$n=10$ , $g=1000$ の場合：
 $$
 T_{\text{Argmax}} \approx 45 \times 10^6 = 4.5 \times 10^7 \text{ 演算}
 $$
@@ -169,7 +169,7 @@ $$
 T_{\text{Geq}} = O(g^2)
 $$
 
-格子上で二重積分を数値計算。$g=1000$ の場合：
+格子上で二重積分を数値計算。 $g=1000$ の場合：
 
 $$
 T_{\text{Geq}} = 10^6 \text{ 演算}
@@ -255,7 +255,7 @@ $$
 \Delta \varepsilon \approx \left|\frac{\Delta P}{P}\right| + \left|\frac{\Delta Q}{Q}\right|
 $$
 
-$P=Q=0.1$, $N=100,000$ の場合：
+$P=Q=0.1$ , $N=100,000$ の場合：
 
 $$
 \Delta \varepsilon \approx 2 \times \frac{0.003}{0.1} = 0.06 \quad (6\%)
@@ -304,7 +304,7 @@ $$
 T_{\text{total}} = N \times T_{\text{sample}}
 $$
 
-$N=100,000$, $n=10$ の場合：
+$N=100,000$ , $n=10$ の場合：
 
 $$
 T_{\text{total}} = 100,000 \times 10 = 10^6 \text{ 演算}
@@ -323,13 +323,13 @@ $$
 - $B = \prod_{i=1}^{d} b_i$: 総ビン数
 - $b_i$: 次元 $i$ のビン数
 
-SVT3（$d=10$, $b_i \approx 10$）の場合：
+SVT3（ $d=10$ , $b_i \approx 10$ ）の場合：
 
 $$
 T_{\text{histogram}} = 100,000 \times 10 + 10^{10} \approx 10^6 \text{ 演算}
 $$
 
-ただし、実際にはsparse histogramを使うため、$B$ はサンプル数 $N$ に制限される。
+ただし、実際にはsparse histogramを使うため、 $B$ はサンプル数 $N$ に制限される。
 
 #### 2.3.3 キャッシュ効率の問題
 
@@ -601,7 +601,7 @@ $$
 
 **誤差分析**:
 - Monte Carlo誤差: 6%
-- 多次元ヒストグラム（$d=10$, 各次元11ビン）での希薄性
+- 多次元ヒストグラム（ $d=10$ , 各次元11ビン）での希薄性
 - レアビンでの推定誤差が大きい: $\approx 10-20\%$
 
 **実測**: 推定ε=∞, 理論ε=∞ ✓
@@ -671,7 +671,7 @@ $$
 
 **性能分析**:
 - 1演算あたり: $87.82 / (2 \times 10^6) = 44\mu s$
-- キャッシュミスの影響が顕著（$n=20$ で配列が大きい）
+- キャッシュミスの影響が顕著（ $n=20$ で配列が大きい）
 
 ---
 
