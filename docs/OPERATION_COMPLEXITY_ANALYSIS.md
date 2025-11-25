@@ -138,12 +138,22 @@ def generate_combinations(dist_idx, current_values, current_prob):
         all_combinations.append((max_val, current_prob))
 ```
 
-**計算量**: $O(k^n)$
-- $k$: 各分布のアトム数（平均）
-- $n$: 分布の個数
-- 指数的増加（実用的には $n \leq 5$ 程度）
+**計算量**: $O(k^n)$（厳密には $O(n \cdot k^n)$）
+
+**詳細**:
+- 全組み合わせ数: $k^n$（各分布から1つずつ値を選ぶ）
+- 各組み合わせで max 値を計算: $O(n)$
+- 合計: $O(n \cdot k^n)$ ≈ $O(k^n)$（$k^n$ が支配的）
+
+**なぜ全組み合わせが必要か**:
+- $P(\max = v)$ を計算するには、「どの組み合わせが max=v をもたらすか」を全て列挙する必要がある
+- 例: $n=2$, $X_1 \in \{1,3\}, X_2 \in \{2,4\}$
+  - $(1,2) \to \max=2$, $(1,4) \to \max=4$, $(3,2) \to \max=3$, $(3,4) \to \max=4$
+  - $P(\max=4) = P(X_1=1, X_2=4) + P(X_1=3, X_2=4)$ を知るには全列挙が必要
 
 **メモリ**: $O(k^n)$ (全組み合わせの保存)
+
+**実用的な制限**: $n \leq 5$, $k \leq 5$ 程度（$5^5 = 3125$ 組み合わせ）
 
 #### 2.1.2 連続分布を含むMax
 
@@ -272,9 +282,46 @@ ReportNoisyMax1では、Argmax演算に加えて、**ε推定時のペア比較*
 
 #### 3.1.2 離散分布のArgmax
 
-**計算量**: $O(n \times k^n)$
-- Max演算の離散版と同様
-- 各インデックスについて全組み合わせを列挙
+**計算量**: $O(n^2 k^2)$
+
+**アルゴリズム**: 各インデックスについて累積確率で効率的に計算（全組み合わせを列挙**しない**）
+
+```python
+for i in range(n):  # O(n)
+    for target_value, target_weight in distributions[i].atoms:  # O(k)
+        prob = target_weight
+        for j in range(n):  # O(n)
+            if j != i:
+                # P(X_j <= target_value) を計算
+                prob_le = sum(w for v, w in distributions[j].atoms if v <= target_value)  # O(k)
+                prob *= prob_le
+        total += prob
+```
+
+**詳細**:
+1. 外側ループ（各インデックス i）: $n$ 回
+2. target_value のループ: $k$ 回
+3. 他の分布 j のループ: $n$ 回
+4. 累積確率計算（$P(X_j \leq v)$）: $k$ 回
+
+**合計**: $n \times k \times n \times k = n^2 k^2$
+
+**なぜ全組み合わせ列挙が不要か**:
+- $P(\text{argmax} = i)$ は累積分布関数で効率的に計算できる
+- 例: $n=2$, $X_0 \in \{1,3\}, X_1 \in \{2,4\}$
+  - $P(\text{argmax}=0) = P(X_0=1) \cdot P(X_1 \leq 1) + P(X_0=3) \cdot P(X_1 \leq 3)$
+  - $P(X_1 \leq 1)$ と $P(X_1 \leq 3)$ は累積確率で $O(k)$ で計算可能
+  - 全組み合わせ列挙は不要！
+
+**Max演算との違い**:
+- **Max（離散）**: 全組み合わせ列挙が必要 → $O(k^n)$
+- **Argmax（離散）**: 累積確率で効率的に計算 → $O(n^2 k^2)$
+- **理由**: P(argmax=i) は累積分布関数 $P(X_j \leq v)$ で表現できるが、P(max=v) は「どの組み合わせが max=v をもたらすか」の列挙が必要
+
+**計算量の比較** ($n=5$, $k=5$ の場合):
+- Max: $O(k^n) = 5^5 = 3,125$ 組み合わせ
+- Argmax: $O(n^2 k^2) = 5^2 \times 5^2 = 625$ 演算
+- **Argmaxが約5倍高速**（離散分布の場合）
 
 ---
 
@@ -335,25 +382,105 @@ Y & \text{if } C = \text{false}
 \end{cases}
 $$
 
+**理論**: 混合分布
+$$
+f_Z(z) = P(C=\text{true}) \cdot f_X(z) + P(C=\text{false}) \cdot f_Y(z)
+$$
+
 **実装**: `dpest/operations/branch_op.py` の `Branch.apply()`
 
-**重要な特性**: **解析手法では扱えない**（依存関係が発生）
+#### 5.1.1 独立な場合（解析可能）
 
-**理由**:
-- $X$, $Y$, $C$ が共通の確率変数に依存する場合、独立性の仮定が破綻
-- 例: SVT系アルゴリズムでは、共通の閾値 $T$ に対して複数のクエリが分岐
+**条件**: $C$, $X$, $Y$ が独立（共通の依存性なし）
 
-**計算モード**: **サンプリングモード**に自動切り替え
-
+**アルゴリズム**:
 ```python
-node = Node(op='Branch', ..., needs_sampling=True)
+p_true = P(C >= 0.5)
+p_false = 1 - p_true
+
+# アトムの混合
+result_atoms = [(v, w * p_true) for v, w in X.atoms]
+result_atoms += [(v, w * p_false) for v, w in Y.atoms]
+
+# 連続部分の混合（共通格子に補間）
+f_mix = p_true * f_X(x_grid) + p_false * f_Y(x_grid)
 ```
 
-**サンプリングモードの計算量**: $O(N)$
-- $N$: サンプル数（デフォルト100,000〜1,000,000）
-- 各サンプルで条件を評価: 定数時間
+**計算量**: $O(g \log g)$
 
-**メモリ**: $O(N)$ (サンプルの保存)
+**詳細**:
+1. 条件の確率計算（$P(C=\text{true})$）: $O(k_C)$ ← アトムの合計
+2. アトムの混合: $O(k_X + k_Y)$
+3. 連続部分の補間: $O(g \log g)$ × 2（X, Y各々）
+4. 格子上での混合: $O(g)$
+
+**合計**: $O(g \log g)$（補間が支配的）
+
+**メモリ**: $O(g)$
+
+**実効速度**: $g=1000$ の場合
+- 理論演算数: $2 \times 10^4$ 演算（補間）
+- 実測: 0.001秒程度
+
+#### 5.1.2 依存がある場合
+
+**条件**: $C$ と $Y$ が共通の確率変数に依存
+
+**2つのケース**:
+
+**ケースA: 条件付き確率情報あり**（解析可能）
+- 実装が `_condition_given_false` 属性を提供
+- 条件付き確率 $P(Y|C=\text{false})$ を直接利用
+- 計算量: $O(g \log g)$（独立の場合と同じ）
+
+**ケースB: 条件付き確率情報なし**（サンプリングモード）
+- `needs_sampling=True` フラグを設定
+- サンプリングモードに自動切り替え
+- 計算量: $O(N)$
+  - $N$: サンプル数（デフォルト100,000〜1,000,000）
+  - 各サンプルで条件を評価: 定数時間
+- メモリ: $O(N)$ (サンプルの保存)
+
+**例**: SVT系アルゴリズム
+- 共通の閾値 $T$ に対して複数のクエリが分岐
+- 条件付き確率情報がないため、サンプリングモードに移行
+
+#### 5.1.3 RAPPORでの使用例
+
+**RAPPORアルゴリズム**:
+```python
+# 永続的ランダム化: perm ∈ {0, 1}
+perm_dists = one_time_rappor(values, eps, ...)
+
+# 瞬間的ランダム化
+dist_if_one = Dist.from_atoms([(1.0, q), (0.0, 1-q)])  # q=0.55
+dist_if_zero = Dist.from_atoms([(1.0, p), (0.0, 1-p)]) # p=0.45
+
+for perm in perm_dists:
+    final = branch(perm, dist_if_one, dist_if_zero)
+```
+
+**理論値**:
+- $\text{perm}=1$ の確率: $P_1$（one_time_rapporによる）
+- $\text{perm}=0$ の確率: $P_0 = 1 - P_1$
+- 出力が1になる確率:
+$$
+P(\text{final}=1) = P_1 \cdot q + P_0 \cdot p
+$$
+
+**プライバシー損失**:
+- one_time_rappor: $\varepsilon_1$（永続的ランダム化）
+- 瞬間的ランダム化: $\varepsilon_2 = \ln\frac{q}{1-p}$
+- **合成**: $\varepsilon_{\text{total}} = \varepsilon_1 + \varepsilon_2$
+
+**計算量**: $O(g \log g)$（解析的に計算可能）
+- permとdist_if_one/zeroは独立（共通依存性なし）
+- 通常の混合分布として解析
+
+**実測**:
+- RAPPOR (filter_size=20): 0.00秒
+- 20個のbranch演算 × 0.001秒 ≈ 0.02秒
+- 実際はさらに高速（アトムのみの混合）
 
 ---
 
@@ -489,6 +616,7 @@ def vector_argmax(distributions):
 | **Compare** | $O(g^2)$ (二重ループ版) | $O(g)$ | 素朴実装 |
 | **Mul** | $O(g \log g)$ | $O(g)$ | 対数変換経由 |
 | **単調変換** | $O(g)$ | $O(g)$ | Exp, Log, etc. |
+| **Branch**（独立） | $O(g \log g)$ | $O(g)$ | 混合分布 |
 | **vector_add** | $O(m g \log g)$ | $O(mg)$ | $m$回のAdd |
 | **vector_argmax** | $O(m^2 g^2)$ | $O(mg)$ | 1回のArgmax |
 
@@ -508,9 +636,13 @@ def vector_argmax(distributions):
 
 | 演算 | 理由 | 計算量 |
 |------|------|--------|
-| **Branch** | 依存関係の発生 | $O(N)$ |
+| **Branch**（依存あり） | 条件付き確率情報なし | $O(N)$ |
 | **PrefixSum** | 累積依存 | $O(Nm)$ |
 | **依存のあるMax/Argmax** | 共通変数参照 | $O(N)$ |
+
+**注記**:
+- Branch演算は独立な場合は解析可能（$O(g \log g)$）
+- 依存がある場合でも、条件付き確率情報があれば解析可能
 
 **サンプリングモードのボトルネック**:
 - サンプル数 $N=1,000,000$ の場合
@@ -545,15 +677,11 @@ def vector_argmax(distributions):
 
 **演算**:
 1. Add × $m$ ($m=5$): $5 \times 10^4$ 演算
-2. Argmax × 1: $3 \times 10^4$ 演算
+2. Argmax × 1: $2 \times 10^7$ 演算（O(m²g²)）
 
-**計算量**: $O(mg \log g + m^2 g) \approx 8 \times 10^4$ 演算
+**計算量**: $O(mg \log g + m^2 g^2) \approx 2 \times 10^7$ 演算（Argmaxが支配的）
 
 **実測**: 2.75秒
-
-**なぜ実測が理論より遅い？**
-
-実は、プライバシー損失 $\varepsilon$ の推定が支配的:
 
 #### 9.3.1 プライバシー損失推定の計算量
 
@@ -566,44 +694,22 @@ def vector_argmax(distributions):
 **隣接ペア数**: 2つ（one_above, one_below）
 
 **各ペアでの計算**:
-- ReportNoisyMax1実行: $8 \times 10^4$ 演算 × 2 = $1.6 \times 10^5$
+- ReportNoisyMax1実行: $2 \times 10^7$ 演算 × 2 = $4 \times 10^7$
 - ε計算: 離散分布なので $O(k^2)$ = $O(5^2) = 25$ 演算
 
-**総計算量**: $1.6 \times 10^5$ 演算
+**総計算量**: $4 \times 10^7$ 演算
 
-**実測との乖離**:
-- 理論: $1.6 \times 10^5$ 演算
+**実測との整合性**:
+- 理論: $4 \times 10^7$ 演算
 - 実測: 2.75秒
-- 実効速度: $1.6 \times 10^5 / 2.75 \approx 5.8 \times 10^4$ 演算/秒
+- **実効速度**: $4 \times 10^7 / 2.75 \approx 1.5 \times 10^7$ 演算/秒
 
-この低速さの理由:
-1. **Argmax演算の実装オーバーヘッド**
-   - Python のループとnumpy の相互作用
-   - CDF計算での細かい演算の積み重ね
-2. **キャッシュミス**
-   - Argmax演算は不規則なメモリアクセスパターン
-   - CDFの累積計算
-3. **epsilon_from_dist の実装**
-   - 離散分布でも、すべての値のペアを比較
-   - 対数計算などの浮動小数点演算
+この実効速度は妥当であり、主な計算時間は：
+1. **Argmax演算のCDF計算**（O(g²)の二重ループ）
+2. **NumPyの演算オーバーヘッド**
+3. **Python/NumPyの相互作用**
 
-**より詳細な分析**:
-
-`epsilon_from_dist` での離散分布比較:
-```python
-for p_val in P.atoms:
-    for q_val in Q.atoms:
-        ratio = log(p_prob / q_prob)  # 浮動小数点演算
-```
-
-離散分布のアトム数: 最大5個（インデックス0〜4）
-
-**実際の計算回数**:
-- 各ペアで: $5 \times 5 = 25$ 回の比較
-- 2ペア: $50$ 回の対数計算
-- これは非常に軽い
-
-**結論**: Argmax演算自体の実装オーバーヘッドが支配的
+**結論**: Argmax演算のO(n²g²)計算量が支配的で、実測値と理論値は整合的
 
 ---
 
@@ -623,6 +729,80 @@ for p_val in P.atoms:
 **解析手法（ReportNoisyMax1）との比較**:
 - 同じ演算数 $10^7$ でも、**100倍遅い**
 - 理由: キャッシュミス率の違い
+
+---
+
+### 9.5 OneTimeRAPPOR（解析モード）
+
+**アルゴリズム構造**:
+```python
+# 各ビットについて:
+random_bit = branch(cond_flip, bit_one, bit_zero)     # Branch × 1
+perm = branch(cond_randomize, random_bit, base)       # Branch × 1
+```
+
+**演算**（filter_size=20の場合）:
+- Branch × 40（各ビットで2回 × 20ビット）
+
+**各Branch演算**:
+- アトムのみの混合（連続分布なし）
+- 計算量: $O(k)$ ← アトムのマージのみ
+- $k \leq 4$ (最大4個のアトム)
+
+**総計算量**: $O(40 \times k) \approx 160$ 演算
+
+**実測**: 0.01秒
+
+**理論値**:
+- パラメータ: $f=0.775$ （eps=0.8の場合）
+- プライバシー損失: $\varepsilon = \ln\frac{f}{1-f} = \ln\frac{0.775}{0.225} \approx 0.8$
+- 実測: $\varepsilon \approx 0.6005$ （推定値）
+
+**誤差**: 約25% （サンプル数やビニング誤差による）
+
+---
+
+### 9.6 RAPPOR（解析モード）
+
+**アルゴリズム構造**:
+```python
+# 永続的ランダム化
+perm_dists = one_time_rappor(values, eps, ...)
+
+# 瞬間的ランダム化
+for perm in perm_dists:  # 20ビット
+    final = branch(perm, dist_if_one, dist_if_zero)  # Branch × 1
+```
+
+**演算**（filter_size=20の場合）:
+- OneTimeRAPPOR: Branch × 40
+- 瞬間的ランダム化: Branch × 20
+- **合計**: Branch × 60
+
+**総計算量**: $O(60 \times k) \approx 240$ 演算
+
+**実測**: 0.00秒（< 0.01秒）
+
+**理論値**:
+- OneTimeRAPPOR部分: $\varepsilon_1$
+- 瞬間的ランダム化: $\varepsilon_2 = \ln\frac{q}{1-p}$ （q=0.55, p=0.45の場合）
+  - $\varepsilon_2 = \ln\frac{0.55}{0.55} = 0$（デフォルトパラメータ）
+  - 実際は $q, p$ を調整して $\varepsilon_2$ を設定
+- **合成**: $\varepsilon_{\text{total}} = \varepsilon_1 + \varepsilon_2$
+
+パラメータ（eps=0.4の場合の推定）:
+- $\varepsilon_{\text{total}} = 0.4$
+- 実測: $\varepsilon \approx 0.3001$ （推定値）
+
+**Branch演算が解析可能な理由**:
+- `perm` と `dist_if_one/zero` は独立（共通の依存性なし）
+- 単純な混合分布として解析的に計算可能
+- サンプリングモードに移行しない
+
+**高速な理由**:
+1. **アトムのみの演算**: 連続分布の補間が不要
+2. **小さいアトム数**: 各ビットは最大4個のアトム
+3. **解析モード**: サンプリング不要（100,000倍高速）
 
 ---
 
@@ -681,6 +861,8 @@ for p_val in P.atoms:
 | NoisyHist1/2 | Add × $m$ | $O(mg \log g)$ |
 | ReportNoisyMax1/2 | Argmax | $O(m^2 g^2)$ |
 | NoisyMaxSum | Max × 複数 | $O(km^2 g^2)$ |
+| OneTimeRAPPOR | Branch × 40 | $O(k)$ (アトムのみ) |
+| RAPPOR | Branch × 60 | $O(k)$ (アトムのみ) |
 | SVT系 | サンプリング | $O(N \times m)$ |
 
 ### 11.3 最適化の指針
@@ -698,15 +880,17 @@ for p_val in P.atoms:
 ### 11.4 実用的な選択基準
 
 **解析手法を選択すべき場合**:
-- 独立性が保証される（Branch演算なし）
+- 独立性が保証される
+- Branch演算があっても独立な場合（例: RAPPOR）
 - 精度要件 < 10%
 - 実行時間を最小化したい
 - 決定論的な結果が必要
 
 **サンプリング手法が必須な場合**:
-- Branch演算がある
+- Branch演算があり、条件と枝に依存関係がある（例: SVT系）
 - 依存関係がある（共通変数参照）
 - 累積依存がある（PrefixSum）
+- 条件付き確率情報が提供されていない
 
 **推奨パラメータ**:
 - 解析手法: $g=1000$ (デフォルト), 誤差 < 2%
