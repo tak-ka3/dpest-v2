@@ -16,7 +16,22 @@ dpestフレームワークの解析手法では、確率分布を格子近似（
 
 ### 1.1 Add演算（加法）: $Z = X + Y$
 
-**アルゴリズム**: FFTベースの畳み込み
+**理論**: 独立な確率変数の和の分布（畳み込み）
+
+**離散分布の場合**:
+$$
+P(Z = z) = \sum_{x} P(X = x) \cdot P(Y = z - x)
+$$
+
+**連続分布の場合**:
+$$
+f_Z(z) = \int_{-\infty}^{\infty} f_X(x) \cdot f_Y(z - x) \, dx = (f_X * f_Y)(z)
+$$
+
+この畳み込み積分は**畳み込み定理**により、フーリエ変換を使って効率的に計算できる：
+$$
+\mathcal{F}[f_X * f_Y] = \mathcal{F}[f_X] \cdot \mathcal{F}[f_Y]
+$$
 
 **実装**: `dpest/operations/operations.py` の `Add.apply()`
 
@@ -83,6 +98,32 @@ conv_result = np.convolve(x_unified, y_unified, mode='full') * dx
 ---
 
 ### 1.2 Affine演算（アフィン変換）: $Z = aX + b$
+
+**理論**: 確率変数の線形変換（変数変換公式）
+
+**離散分布の場合**:
+$$
+P(Z = z) = P(aX + b = z) = P\left(X = \frac{z - b}{a}\right)
+$$
+
+各点質量 $(x_i, p_i)$ は $(ax_i + b, p_i)$ に変換される（確率は不変）。
+
+**連続分布の場合**（変数変換公式）:
+$$
+f_Z(z) = \frac{1}{|a|} f_X\left(\frac{z - b}{a}\right)
+$$
+
+ここで $\frac{1}{|a|}$ は**ヤコビアン**（ヤコビ行列式）:
+$$
+\left|\frac{dX}{dZ}\right| = \left|\frac{d}{dz}\left(\frac{z-b}{a}\right)\right| = \frac{1}{|a|}
+$$
+
+**特殊ケース**:
+- **スケーリング** ($b=0$): $f_Z(z) = \frac{1}{|a|} f_X(z/a)$
+  - $a > 1$: 分布が広がる
+  - $0 < a < 1$: 分布が縮まる
+- **シフト** ($a=1$): $f_Z(z) = f_X(z - b)$
+  - 分布が $b$ だけ平行移動
 
 **実装**: `dpest/operations/operations.py` の `Affine.apply()`
 
