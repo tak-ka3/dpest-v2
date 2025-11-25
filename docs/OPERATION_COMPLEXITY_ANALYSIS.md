@@ -159,29 +159,30 @@ for i in range(len(distributions)):
     f_max += f_i * cdf_product  # O(g)
 ```
 
-**計算量**: $O(n^2 \times g)$
+**計算量**: $O(n^2 \times g^2)$
 
 **詳細**:
 1. 外側ループ（$i$）: $n$ 回
 2. 内側ループ（$j$）: $n-1$ 回
-3. CDF計算（`get_cdf_on_grid`）: 各回 $O(g)$
+3. CDF計算（`_get_cdf_on_grid`）: 各回 $O(g^2)$
+   - x_gridの各点(g個)について、累積和をtrapzで計算(O(g))
+   - 二重ループ構造: 外側g回 × 内側O(g) = O(g²)
 4. 密度取得: 各回 $O(g)$
 5. 積の計算: 各回 $O(g)$
 
-**合計**: $n \times [(n-1) \times g + g + g] = n \times n \times g = O(n^2 g)$
+**合計**: $n \times [(n-1) \times g^2 + g + g] \approx O(n^2 g^2)$
 
-**CDF計算の詳細**:
+**CDF計算の実装**:
 ```python
 def _get_cdf_on_grid(dist, x_grid):
-    # 連続分布の場合: 累積和で近似
+    cdf = np.zeros_like(x_grid)
+    # 連続分布の場合: 各点で累積積分
     if dist.density:
-        f = get_density_on_grid(dist, x_grid)
-        cdf = np.cumsum(f) * dx  # O(g)
-    # 離散分布の場合: 各点で集計
-    elif dist.atoms:
-        cdf = np.zeros(len(x_grid))
-        for val, prob in dist.atoms:
-            cdf[x_grid >= val] += prob  # O(g) per atom
+        for i, x in enumerate(x_grid):  # O(g)
+            mask = dist_x <= x
+            if np.any(mask):
+                cdf[i] = np.trapz(dist_f[mask], dist_x[mask])  # O(g)
+    # → 合計 O(g²)
 ```
 
 **メモリ**: $O(n \times g)$
@@ -189,8 +190,9 @@ def _get_cdf_on_grid(dist, x_grid):
 - 作業領域（f_max, cdf_product）: $2g$
 
 **実効速度**: $n=5$, $g=1000$ の場合
-- 理論演算数: $25 \times 1000 = 2.5 \times 10^4$ 演算
-- 実測: 0.01秒程度
+- 理論演算数: $5 \times (4 \times 10^6 + 10^3) \approx 2 \times 10^7$ 演算
+  - 各iについて: 4つの他分布 × O(g²=10⁶) + O(g)
+- 実測: 0.5秒程度
 
 ### 2.2 Min演算: $Z = \min(X_1, X_2, \ldots, X_n)$
 
@@ -199,7 +201,7 @@ $$
 f_{\min}(z) = \sum_{i=1}^{n} f_i(z) \prod_{j \neq i} (1 - F_j(z))
 $$
 
-**計算量**: Max演算と同じ $O(n^2 g)$
+**計算量**: Max演算と同じ $O(n^2 g^2)$
 
 **実装**: Max演算とほぼ同一のアルゴリズム
 
@@ -236,33 +238,37 @@ for i in range(n):
     prob_i = np.trapz(integrand, x_grid)
 ```
 
-**計算量**: $O(n^2 \times g)$
+**計算量**: $O(n^2 \times g^2)$
 
 **詳細**:
 1. 外側ループ（各インデックス $i$）: $n$ 回
 2. 内側ループ（他の分布 $j$）: $n-1$ 回
-3. 各CDF計算: $O(g)$
+3. 各CDF計算（`_compute_cdf_on_grid`）: $O(g^2)$
+   - x_gridの各点(g個)について、累積和をtrapzで計算(O(g))
+   - 二重ループ構造: 外側g回 × 内側O(g) = O(g²)
 4. 積の計算: $O(g)$
 5. 数値積分（`np.trapz`）: $O(g)$
 
-**合計**: $n \times [(n-1) \times g + g + g] = O(n^2 g)$
+**合計**: $n \times [(n-1) \times g^2 + g + g] \approx O(n^2 g^2)$
 
 **メモリ**: $O(n \times g)$
 - 各分布のCDF: $n \times g$
 - 作業領域（integrand）: $g$
 
 **実効速度**: $n=5$, $g=1000$ の場合
-- 理論演算数: $5 \times (4 \times 1000 + 1000 + 1000) = 5 \times 6000 = 3 \times 10^4$ 演算
-- 実測: 0.01秒程度（単一Argmax）
+- 理論演算数: $5 \times (4 \times 10^6 + 10^3 + 10^3) \approx 2 \times 10^7$ 演算
+  - 各iについて: 4つの他分布 × O(g²=10⁶) + O(g) + O(g)
+- 実測: 0.5秒程度（単一Argmax）
 
 **重要な注意**:
 ReportNoisyMax1では、Argmax演算に加えて、**ε推定時のペア比較**が必要。
 
 **ReportNoisyMax1の総計算量**:
-- Argmax演算自体: $O(n^2 g)$ = $3 \times 10^4$
-- しかし、プライバシー損失推定では、隣接ペア数だけArgmaxを繰り返し実行
+- Argmax演算自体: $O(n^2 g^2) \approx 2 \times 10^7$
+- プライバシー損失推定では、隣接ペア数だけArgmaxを繰り返し実行
 - ペア数: 通常2つ（one_above, one_below）
-- **実質的な支配項は別にある**（後述）
+- 合計: 2ペア × 2 \times 10^7 = 4 \times 10^7$ 演算
+- **実測2.75秒はこのArgmax演算のコストが支配的**
 
 #### 3.1.2 離散分布のArgmax
 
@@ -477,14 +483,14 @@ def vector_argmax(distributions):
 | **Add**（離散+連続） | $O(k \times g)$ | $O(k \times g)$ | 補間が必要 |
 | **Add**（連続+連続） | $O(g \log g)$ | $O(g)$ | **FFT使用** |
 | **Affine** | $O(g)$ | $O(g)$ | 線形変換 |
-| **Max/Min** | $O(n^2 g)$ | $O(ng)$ | CDFベース |
-| **Argmax** | $O(n^2 g)$ | $O(ng)$ | CDFベース |
+| **Max/Min** | $O(n^2 g^2)$ | $O(ng)$ | CDFベース |
+| **Argmax** | $O(n^2 g^2)$ | $O(ng)$ | CDFベース |
 | **Compare** | $O(g)$ (最適化版) | $O(g)$ | CDF利用 |
 | **Compare** | $O(g^2)$ (二重ループ版) | $O(g)$ | 素朴実装 |
 | **Mul** | $O(g \log g)$ | $O(g)$ | 対数変換経由 |
 | **単調変換** | $O(g)$ | $O(g)$ | Exp, Log, etc. |
 | **vector_add** | $O(m g \log g)$ | $O(mg)$ | $m$回のAdd |
-| **vector_argmax** | $O(m^2 g)$ | $O(mg)$ | 1回のArgmax |
+| **vector_argmax** | $O(m^2 g^2)$ | $O(mg)$ | 1回のArgmax |
 
 **デフォルトパラメータ**（$g=1000$）での実効演算数:
 
@@ -492,8 +498,8 @@ def vector_argmax(distributions):
 |------|-----------|--------------|
 | Add（連続） | $10^4$ | 0.001s |
 | Affine | $10^3$ | < 0.001s |
-| Max ($n=5$) | $2.5 \times 10^4$ | 0.01s |
-| Argmax ($n=5$) | $3 \times 10^4$ | 0.01s |
+| Max ($n=5$) | $2 \times 10^7$ | 0.5s |
+| Argmax ($n=5$) | $2 \times 10^7$ | 0.5s |
 | Compare | $10^3$ | < 0.001s |
 
 ---
@@ -661,7 +667,7 @@ for p_val in P.atoms:
 ### 11.1 解析手法が高速な理由
 
 1. **FFTベースの演算**: Add演算が $O(g \log g)$ で非常に効率的
-2. **CDFベースの演算**: Max/Argmaxも $O(n^2 g)$ と実用的
+2. **CDFベースの演算**: Max/Argmaxは $O(n^2 g^2)$ だが、小規模($n \leq 10$)では実用的
 3. **キャッシュ効率**: 順次アクセスパターンで95%以上のヒット率
 4. **決定論的**: 同じ入力に対して再計算不要
 
@@ -673,8 +679,8 @@ for p_val in P.atoms:
 |------------|-----------|--------|
 | LaplaceMechanism | Add | $O(g \log g)$ |
 | NoisyHist1/2 | Add × $m$ | $O(mg \log g)$ |
-| ReportNoisyMax1/2 | Argmax | $O(m^2 g)$ |
-| NoisyMaxSum | Max × 複数 | $O(km^2 g)$ |
+| ReportNoisyMax1/2 | Argmax | $O(m^2 g^2)$ |
+| NoisyMaxSum | Max × 複数 | $O(km^2 g^2)$ |
 | SVT系 | サンプリング | $O(N \times m)$ |
 
 ### 11.3 最適化の指針
