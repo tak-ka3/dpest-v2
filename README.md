@@ -144,6 +144,8 @@ Bins per dimension: [11, 2, 2, 11, 1, 1, 1, 1, 1, 1]
 ### 性能と比較
 
 - **[計算量解析](docs/COMPLEXITY_ANALYSIS.md)**: 全演算・アルゴリズムの計算量とボトルネック分析
+- **[オペレーション計算量分析](docs/OPERATION_COMPLEXITY_ANALYSIS.md)**: 解析手法の全オペレーション（Add、Argmax、Max等）の詳細な計算量分析
+- **[精度・性能分析](docs/ACCURACY_AND_PERFORMANCE_ANALYSIS.md)**: 解析手法とサンプリング手法の精度・性能の理論的・実測的評価
 - **[解析 vs サンプリング](docs/ANALYTIC_VS_SAMPLING.md)**: 2つのモードの計算量・精度トレードオフと使い分け
 - **[解析モードの優位性](docs/ANALYTIC_MODE_SUPERIORITY.md)**: 実測結果に基づく解析手法の性能分析（100-400倍高速化の理由）
 - **[他手法との比較](docs/COMPARISON_WITH_OTHER_METHODS.md)**: StatDP、DP-Finder、CheckDP、DP-Sniperとの詳細比較
@@ -154,6 +156,7 @@ Bins per dimension: [11, 2, 2, 11, 1, 1, 1, 1, 1, 1]
 - **[グリッド統一問題](docs/GRID_ALIGNMENT.md)**: 異なる入力間での確率分布グリッドの統一方法
 - **[ε=∞の検出](docs/EPSILON_INFINITY_DETECTION.md)**: 排他的ビンによる無限大プライバシー損失の検出方法
 - **[TruncatedGeometric解説](docs/TruncatedGeometric_EXPLANATION.md)**: Truncated Geometric機構の詳細実装
+- **[ReportNoisyMax1解析](docs/REPORT_NOISY_MAX1_ANALYSIS.md)**: ReportNoisyMax1の実行時間と精度の理論的分析
 - **[プライバシー損失レポート](docs/privacy_loss_report.md)**: 各アルゴリズムのε推定結果
 - **[コード概要](docs/code_overview.md)**: コードベースの全体構造
 
