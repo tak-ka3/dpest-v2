@@ -213,6 +213,7 @@ where $\rho = \sqrt{\frac{\ln(2/\alpha)}{2N}}$ かつ $\frac{\rho}{c} \leq \frac
 #### 証明の概要（3ステップ）
 
 **Step 1（Lemma 2）**: しきい値攻撃で十分
+
 $$\max_{\mathcal{S} \in \mathbb{B} \to [0,1]} \mathcal{E}^{\geq c}(a, a', \mathcal{S}) \leq \max_{t,q \in [0,1]} \mathcal{E}^{\geq c}(a, a', \mathcal{S}^{t,q})$$
 
 **Step 2（Lemma 4）**: 最適パラメータ $(t^*, q^*)$ は $\Pr[M(a') \in \mathcal{S}^{t^*,q^*}] = c$ を満たす
@@ -252,6 +253,7 @@ DD-Search(M):
 **目的**: 各候補証人のパワーを推定して最良のものを選択
 
 **方法**: $N_{\text{check}}$ サンプルを使用して推定：
+
 $$\hat{\mathcal{E}}(a, a', \mathcal{S}) := \ln\left(\hat{P}^{N_{\text{check}}}_{M(a)\in\mathcal{S}}\right) - \ln\left(\hat{P}^{N_{\text{check}}}_{M(a')\in\mathcal{S}}\right)$$
 
 #### 下界の計算（LowerBoundE）
@@ -259,6 +261,7 @@ $$\hat{\mathcal{E}}(a, a', \mathcal{S}) := \ln\left(\hat{P}^{N_{\text{check}}}_{
 **目的**: 統計的に健全な下界を提供（Theorem 1の保証）
 
 **方法**: Clopper-Pearson区間を使用して $N_{\text{final}}$ サンプルで計算：
+
 $$\underline{\mathcal{E}} = \ln\left(\underline{P}^{N_{\text{final}},\alpha/2}_{M(a)\in\mathcal{S}}\right) - \ln\left(\overline{P}^{N_{\text{final}},\alpha/2}_{M(a')\in\mathcal{S}}\right)$$
 
 **保証（Theorem 1）**: 確率 $1-\alpha$ で $\underline{\mathcal{E}} \leq \mathcal{E}(a, a', \mathcal{S})$
