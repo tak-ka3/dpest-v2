@@ -164,9 +164,9 @@ DP-Sniper(M, a, a'):
 **目的**: $\Pr[M(a') \in \mathcal{S}^{t,q}] = c$ を満たすパラメータ $(t^\dagger, q^\dagger)$ を選択
 
 **手順**:
-1. $M(a')$ から新しい $N$ サンプルを生成: $b'_0, \ldots, b'_{N-1}$
-2. 各サンプルに事後確率でスコア付け: $p'_i = p_\theta(a|b'_i)$
-3. スコアを降順ソート: $p''_0 \geq p''_1 \geq \cdots \geq p''_{N-1}$
+1. $M(a')$ から新しい $N$ サンプルを生成: $b'_0, \ldots, b'_{N-1}$ 
+2. 各サンプルに事後確率でスコア付け: $p'_i = p_\theta(a|b'_i)$ 
+3. スコアを降順ソート: $p''_0 \geq p''_1 \geq \cdots \geq p''_{N-1}$ 
 
 #### ステップ5-6: パラメータ選択
 
@@ -180,6 +180,7 @@ $$t^\dagger = p''_{\min(\lfloor c \cdot N \rfloor, N-1)}$$
 これにより、高々 $c \cdot N$ 個のサンプルが $t^\dagger$ を超える
 
 **タイブレーク $q^\dagger$ の選択**:
+
 $$q^\dagger = \frac{cN - \sum_{i=0}^{N-1} [p'_i > t^\dagger]}{\sum_{i=0}^{N-1} [p'_i = t^\dagger]}$$
 
 これにより、全体でちょうど $cN$ 個のサンプルがカバーされる
