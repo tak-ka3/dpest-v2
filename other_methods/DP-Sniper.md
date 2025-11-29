@@ -194,7 +194,7 @@ $$\Pr[b \in \mathcal{S}^{t^\dagger,q^\dagger}_\theta] = [p_\theta(a|b) > t^\dagg
 
 **Guideline 1（経験的精度）**: 精度 $\omega$ と信頼度 $1-\alpha$ に対して：
 
-$$N = \max\left\{\frac{2(1-c)}{\omega^2 \cdot c}, \frac{8(1-c)}{c}\left(\text{erf}^{-1}(1-2\alpha)\right)^2\right\}$$
+$$N = \max\left\\{\frac{2(1-c)}{\omega^2 \cdot c}, \frac{8(1-c)}{c}\left(\text{erf}^{-1}(1-2\alpha)\right)^2\right\\}$$
 
 **実験設定**: $c = 0.01$, $\omega = 0.005$, $\alpha = 0.05$ → $N = 10.7 \times 10^6$
 
