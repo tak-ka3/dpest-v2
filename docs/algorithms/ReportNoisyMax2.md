@@ -15,6 +15,7 @@ ReportNoisyMax2は、ReportNoisyMax1の変種で、Laplaceノイズの代わり�
 3. ノイズ付きベクトルの最大値を持つインデックスを返す: $\text{argmax}_i (q_i + \eta_i)$
 
 **数式**:
+
 $$
 M(D) = \text{argmax}_i (q_i + \text{Exp}(2/\varepsilon))
 $$

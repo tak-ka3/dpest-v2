@@ -15,6 +15,7 @@ ReportNoisyMax1は、Report Noisy Max機構の正しい実装です。入力ベ�
 3. ノイズ付きベクトルの最大値を持つインデックスを返す: $\text{argmax}_i (q_i + \eta_i)$
 
 **数式**:
+
 $$
 M(D) = \text{argmax}_i (q_i + \text{Lap}(2/\varepsilon))
 $$
@@ -60,6 +61,7 @@ $$
      - 二重ループ構造: 外側 $g$ 回 × 内側 $O(g)$ = $O(g^2)$
 
 **実効計算量**（$m=5$, $g=1000$）:
+
 $$
 m^2 \times g^2 = 25 \times 10^6 = 2.5 \times 10^7 \text{ 演算}
 $$
@@ -78,6 +80,7 @@ Argmax演算は、各インデックスが最大となる確率を計算する�
 #### 1. 切断誤差（Truncation Error）
 
 各Laplace分布（スケール $b = 2/\varepsilon = 20$）の切断誤差:
+
 $$
 \text{err}_{\text{trunc}} \approx e^{-\varepsilon R / 2} = e^{-0.1 \times 500 / 2} = e^{-25} \approx 10^{-11}
 $$

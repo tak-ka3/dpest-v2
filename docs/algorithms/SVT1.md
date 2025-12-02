@@ -19,6 +19,7 @@ SVT1（Sparse Vector Technique 1）は、一連のクエリに対して閾値判
    - カウンタが $c$ に達したら、以降は NAN を出力
 
 **数式**:
+
 $$
 T = t + \text{Lap}(2/\varepsilon), \quad \tilde{q}_i = q_i + \text{Lap}(4c/\varepsilon)
 $$
@@ -57,6 +58,7 @@ SVT1は条件分岐（Branch演算）が多数含まれ、各クエリの結果�
    - $N$ 個のサンプルをヒストグラムにビン分け
 
 **実効計算量**（$N=10^6$, $m=10$）:
+
 $$
 N \times m = 10^6 \times 10 = 10^7 \text{ 演算}
 $$

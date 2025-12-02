@@ -36,6 +36,7 @@ NoisyMaxSumは、複数のベクトルに対してReport Noisy Maxを適用し�
 3. **合計**: Add演算 $O(n \times g \log g)$（Argmaxより小さいため無視）
 
 **実効計算量**（$n=20$, $m=5$, $g=1000$）:
+
 $$
 20 \times 25 \times 10^6 = 5 \times 10^8 \text{ 演算}
 $$

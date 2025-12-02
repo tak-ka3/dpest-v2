@@ -15,6 +15,7 @@ ReportNoisyMax3は、Laplaceノイズを追加した後、インデックスで�
 3. ノイズ付きベクトルの **最大値** を返す: $\max_i (q_i + \eta_i)$
 
 **数式**:
+
 $$
 M(D) = \max_i (q_i + \text{Lap}(2/\varepsilon))
 $$

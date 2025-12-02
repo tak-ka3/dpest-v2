@@ -15,6 +15,7 @@ ReportNoisyMax4は、指数分布ノイズを追加した後、**最大値その
 3. ノイズ付きベクトルの **最大値** を返す: $\max_i (q_i + \eta_i)$
 
 **数式**:
+
 $$
 M(D) = \max_i (q_i + \text{Exp}(2/\varepsilon))
 $$

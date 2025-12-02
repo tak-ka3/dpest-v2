@@ -15,6 +15,7 @@ NoisyHist1は、ヒストグラムの各ビンに独立したLaplaceノイズを
 3. ノイズ付きヒストグラム $(h_1 + \eta_1, h_2 + \eta_2, \ldots, h_m + \eta_m)$ を出力
 
 **数式**:
+
 $$
 M(D) = (h_1 + \text{Lap}(1/\varepsilon), h_2 + \text{Lap}(1/\varepsilon), \ldots, h_m + \text{Lap}(1/\varepsilon))
 $$
@@ -55,6 +56,7 @@ $$
 3. **並列化**: 独立な演算のため、並列実行可能
 
 **実効計算量**（$m=5$, $g=1000$）:
+
 $$
 5 \times 1000 \times \log_2(1000) \approx 5 \times 10^4 \text{ 演算}
 $$
@@ -89,6 +91,7 @@ $$
 #### 3. 数値積分誤差（Quadrature Error）
 
 台形則による誤差（支配的）:
+
 $$
 \text{err}_{\text{quad}} = O(L^3/g^2) \approx O(10^{-3})
 $$

@@ -10,6 +10,7 @@ LaplaceParallelは、単一のスカラー値に対して、複数の独立し�
 3. $n$ 個のノイズ付き値 $(x + \eta_1, x + \eta_2, \ldots, x + \eta_n)$ を出力
 
 **数式**:
+
 $$
 M(D) = (x + \text{Lap}(1/\varepsilon), x + \text{Lap}(1/\varepsilon), \ldots, x + \text{Lap}(1/\varepsilon))
 $$
