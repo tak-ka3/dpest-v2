@@ -2,7 +2,7 @@
 
 ## アルゴリズムの説明
 
-ReportNoisyMax2は、ReportNoisyMax1の変種で、Laplaceノイズの代わりに指数分布ノイズを使用します。正しい実装であり、$\varepsilon$-差分プライバシーを満たします。
+ReportNoisyMax2は、ReportNoisyMax1の変種で、Laplaceノイズの代わりに指数分布ノイズを使用します。正しい実装であり、 $\varepsilon$ -差分プライバシーを満たします。
 
 **出典**:
 > Zeyu Ding, Yuxin Wang, Guanhong Wang, Danfeng Zhang, and Daniel Kifer. 2018.
@@ -12,15 +12,13 @@ ReportNoisyMax2は、ReportNoisyMax1の変種で、Laplaceノイズの代わり�
 **アルゴリズム**:
 1. 入力ベクトル $q = (q_1, q_2, \ldots, q_m)$ を受け取る
 2. 各要素 $i$ に対して、独立に指数分布ノイズ $\eta_i \sim \text{Exp}(2/\varepsilon)$ を追加
-3. ノイズ付きベクトルの最大値を持つインデックスを返す: $\text{argmax}_i (q_i + \eta_i)$
-
-**数式**:
+3. ノイズ付きベクトルの最大値を持つインデックスを返す: $\text{argmax}_i (q_i + \eta_i)$ **数式**:
 
 $$
 M(D) = \text{argmax}_i (q_i + \text{Exp}(2/\varepsilon))
 $$
 
-**プライバシー保証**: クエリの $L_\infty$ 感度が1の場合、$\varepsilon$-差分プライバシーを満たします。
+**プライバシー保証**: クエリの $L_\infty$ 感度が1の場合、 $\varepsilon$ -差分プライバシーを満たします。
 
 ## モード
 
@@ -42,15 +40,11 @@ $$
 
 ### 解析モード
 
-**全体計算量**: $O(m^2 \times g^2)$
+**全体計算量**: $O(m^2 \times g^2)$ ReportNoisyMax1と同じ計算量（Argmax演算が支配的）。
 
-ReportNoisyMax1と同じ計算量（Argmax演算が支配的）。
+**実効計算量**（ $m=5$ , $g=1000$ ）: $\approx 2.5 \times 10^7$ 演算
 
-**実効計算量**（$m=5$, $g=1000$）: $\approx 2.5 \times 10^7$ 演算
-
-**メモリ使用量**: $O(m \times g) = O(5000)$
-
-## 理論的な誤差（精度）
+**メモリ使用量**: $O(m \times g) = O(5000)$ ## 理論的な誤差（精度）
 
 ReportNoisyMax1と同様の誤差構造。総誤差 $O(10^{-2})$ が支配的。
 

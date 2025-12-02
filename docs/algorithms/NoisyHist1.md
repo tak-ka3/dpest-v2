@@ -2,7 +2,7 @@
 
 ## アルゴリズムの説明
 
-NoisyHist1は、ヒストグラムの各ビンに独立したLaplaceノイズを追加する差分プライバシーアルゴリズムです。このアルゴリズムは正しい実装であり、$\varepsilon$-差分プライバシーを満たします。
+NoisyHist1は、ヒストグラムの各ビンに独立したLaplaceノイズを追加する差分プライバシーアルゴリズムです。このアルゴリズムは正しい実装であり、 $\varepsilon$ -差分プライバシーを満たします。
 
 **出典**:
 > Zeyu Ding, Yuxin Wang, Guanhong Wang, Danfeng Zhang, and Daniel Kifer. 2018.
@@ -20,13 +20,13 @@ $$
 M(D) = (h_1 + \text{Lap}(1/\varepsilon), h_2 + \text{Lap}(1/\varepsilon), \ldots, h_m + \text{Lap}(1/\varepsilon))
 $$
 
-**プライバシー保証**: ヒストグラムの $L_1$ 感度が1の場合、$\varepsilon$-差分プライバシーを満たします。
+**プライバシー保証**: ヒストグラムの $L_1$ 感度が1の場合、 $\varepsilon$ -差分プライバシーを満たします。
 
 ## モード
 
 **解析モード**
 
-各ビンに対してLaplace分布を格子近似し、$m$ 個の独立な畳み込み演算を並列実行します。
+各ビンに対してLaplace分布を格子近似し、 $m$ 個の独立な畳み込み演算を並列実行します。
 
 ## プライバシー損失結果
 
@@ -44,35 +44,27 @@ $$
 
 ### 解析モード
 
-**全体計算量**: $O(m \times g \log g)$
-
-**内訳**:
-1. **Laplace分布の生成**: $O(m \times g)$
-   - $m=5$ 個の独立なLaplace分布を生成
+**全体計算量**: $O(m \times g \log g)$ **内訳**:
+1. **Laplace分布の生成**: $O(m \times g)$ - $m=5$ 個の独立なLaplace分布を生成
    - 各分布は格子点 $g=1000$ 上で評価
-2. **Add演算（各ビンに対する畳み込み）**: $O(m \times g \log g)$
-   - $m=5$ 回の独立な畳み込み
-   - 各畳み込みは $O(g \log g)$（FFTベース）
+2. **Add演算（各ビンに対する畳み込み）**: $O(m \times g \log g)$ - $m=5$ 回の独立な畳み込み
+   - 各畳み込みは $O(g \log g)$ （FFTベース）
 3. **並列化**: 独立な演算のため、並列実行可能
 
-**実効計算量**（$m=5$, $g=1000$）:
+**実効計算量**（ $m=5$ , $g=1000$ ）:
 
 $$
 5 \times 1000 \times \log_2(1000) \approx 5 \times 10^4 \text{ 演算}
 $$
 
-**メモリ使用量**: $O(m \times g) = O(5000)$
-
-**参照**: `docs/OPERATION_COMPLEXITY_ANALYSIS.md`
+**メモリ使用量**: $O(m \times g) = O(5000)$ **参照**: `docs/OPERATION_COMPLEXITY_ANALYSIS.md`
 - Add演算（連続+連続）: 1.1.3節
 
 ## 理論的な誤差（精度）
 
 ### 解析モードの誤差構造
 
-**総誤差**: $\text{err}_{\text{total}} = \text{err}_{\text{trunc}} + \text{err}_{\text{interp}} + \text{err}_{\text{quad}}$
-
-各ビンの誤差は独立であり、LaplaceMechanismと同様の誤差特性を持ちます。
+**総誤差**: $\text{err}_{\text{total}} = \text{err}_{\text{trunc}} + \text{err}_{\text{interp}} + \text{err}_{\text{quad}}$ 各ビンの誤差は独立であり、LaplaceMechanismと同様の誤差特性を持ちます。
 
 #### 1. 切断誤差（Truncation Error）
 
@@ -96,7 +88,7 @@ $$
 \text{err}_{\text{quad}} = O(L^3/g^2) \approx O(10^{-3})
 $$
 
-**複数ビンの影響**: $m=5$ 個のビンがあっても、各ビンの誤差は独立なので、全体の誤差は単一ビンと同程度（$O(10^{-3})$）に保たれます。
+**複数ビンの影響**: $m=5$ 個のビンがあっても、各ビンの誤差は独立なので、全体の誤差は単一ビンと同程度（ $O(10^{-3})$ ）に保たれます。
 
 ## 理論と実験結果の比較分析
 
@@ -117,12 +109,12 @@ $$
 | 項目 | 理論値 | 実測値 | 評価 |
 |------|--------|--------|------|
 | 計算量 | $O(m \times g \log g)$ | - | - |
-| 演算数（$m=5$） | $\approx 5 \times 10^4$ | - | - |
+| 演算数（ $m=5$ ） | $\approx 5 \times 10^4$ | - | - |
 | 実行時間 | - | 0.01秒 | 極めて高速 |
 
 **評価**:
-- **実行時間 0.01秒** は、$m=5$ 個の畳み込み演算を含むにもかかわらず極めて高速
-- LaplaceMechanism（$m=1$）と同じ実行時間を達成
+- **実行時間 0.01秒** は、 $m=5$ 個の畳み込み演算を含むにもかかわらず極めて高速
+- LaplaceMechanism（ $m=1$ ）と同じ実行時間を達成
   - 理由: 各ビンの計算が独立 → 並列化 or FFTのオーバーヘッドが小さい
 - DP-Sniperの実行時間（37秒）と比較して **3700倍高速**
 - StatDPの実行時間（360秒）と比較して **36000倍高速**

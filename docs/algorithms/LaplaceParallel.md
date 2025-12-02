@@ -15,7 +15,7 @@ $$
 M(D) = (x + \text{Lap}(1/\varepsilon), x + \text{Lap}(1/\varepsilon), \ldots, x + \text{Lap}(1/\varepsilon))
 $$
 
-**プライバシー保証**: 並列合成により、全体で $\varepsilon$-差分プライバシーを満たします。
+**プライバシー保証**: 並列合成により、全体で $\varepsilon$ -差分プライバシーを満たします。
 
 ## モード
 
@@ -37,19 +37,15 @@ $$
 
 ### 解析モード
 
-**全体計算量**: $O(n \times g \log g)$
-
-**内訳**:
+**全体計算量**: $O(n \times g \log g)$ **内訳**:
 1. **Laplace分布の生成**: $O(n \times g)$ - $n=20$ 個の独立なLaplace分布
 2. **Add演算**: $O(n \times g \log g)$ - $n=20$ 回の独立な畳み込み
 
-**実効計算量**（$n=20$, $g=1000$）: $20 \times 1000 \times 10 \approx 2 \times 10^5$ 演算
+**実効計算量**（ $n=20$ , $g=1000$ ）: $20 \times 1000 \times 10 \approx 2 \times 10^5$ 演算
 
-**メモリ使用量**: $O(n \times g) = O(20000)$
+**メモリ使用量**: $O(n \times g) = O(20000)$ ## 理論的な誤差（精度）
 
-## 理論的な誤差（精度）
-
-LaplaceMechanismと同様の誤差構造。総誤差 $O(10^{-3})$。
+LaplaceMechanismと同様の誤差構造。総誤差 $O(10^{-3})$ 。
 
 ## 理論と実験結果の比較分析
 
@@ -73,4 +69,4 @@ LaplaceMechanismと同様の誤差構造。総誤差 $O(10^{-3})$。
    - DP-Sniper: 誤差65%（大きく過小評価）
    - StatDP: 誤差86%（大きく過小評価）
 2. **速度**: DPEST は1500-39000倍高速
-3. **スケーラビリティ**: $n$ が増加しても、DPESTは線形にスケール（$O(n \times g \log g)$）
+3. **スケーラビリティ**: $n$ が増加しても、DPESTは線形にスケール（ $O(n \times g \log g)$ ）

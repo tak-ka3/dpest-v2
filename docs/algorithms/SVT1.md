@@ -11,9 +11,9 @@ SVT1（Sparse Vector Technique 1）は、一連のクエリに対して閾値判
 > Algorithm 1
 
 **アルゴリズム**:
-1. 閾値 $T = t + \text{Lap}(1/\varepsilon_1)$ を設定（$\varepsilon_1 = \varepsilon/2$）
+1. 閾値 $T = t + \text{Lap}(1/\varepsilon_1)$ を設定（ $\varepsilon_1 = \varepsilon/2$ ）
 2. 各クエリ $q_i$ に対して：
-   - ノイズ付きクエリ $\tilde{q}_i = q_i + \text{Lap}(2c/\varepsilon_2)$ を計算（$\varepsilon_2 = \varepsilon - \varepsilon_1$）
+   - ノイズ付きクエリ $\tilde{q}_i = q_i + \text{Lap}(2c/\varepsilon_2)$ を計算（ $\varepsilon_2 = \varepsilon - \varepsilon_1$ ）
    - $\tilde{q}_i \geq T$ かを判定
    - TRUE の場合、カウンタをインクリメント
    - カウンタが $c$ に達したら、以降は NAN を出力
@@ -24,7 +24,7 @@ $$
 T = t + \text{Lap}(2/\varepsilon), \quad \tilde{q}_i = q_i + \text{Lap}(4c/\varepsilon)
 $$
 
-**プライバシー保証**: $\varepsilon$-差分プライバシーを満たします。
+**プライバシー保証**: $\varepsilon$ -差分プライバシーを満たします。
 
 ## モード
 
@@ -48,36 +48,28 @@ SVT1は条件分岐（Branch演算）が多数含まれ、各クエリの結果�
 
 ### サンプリングモード
 
-**全体計算量**: $O(N \times m)$
-
-**内訳**:
-1. **サンプル生成**: $O(N \times m)$
-   - $N = 10^6$ サンプル
+**全体計算量**: $O(N \times m)$ **内訳**:
+1. **サンプル生成**: $O(N \times m)$ - $N = 10^6$ サンプル
    - 各サンプルで $m=10$ 個のクエリを処理
-2. **ヒストグラム構築**: $O(N)$
-   - $N$ 個のサンプルをヒストグラムにビン分け
+2. **ヒストグラム構築**: $O(N)$ - $N$ 個のサンプルをヒストグラムにビン分け
 
-**実効計算量**（$N=10^6$, $m=10$）:
+**実効計算量**（ $N=10^6$ , $m=10$ ）:
 
 $$
 N \times m = 10^6 \times 10 = 10^7 \text{ 演算}
 $$
 
-**メモリ使用量**: $O(N) = O(10^6)$
-
-**参照**: `docs/OPERATION_COMPLEXITY_ANALYSIS.md` - サンプリングモードの計算量（7節）
+**メモリ使用量**: $O(N) = O(10^6)$ **参照**: `docs/OPERATION_COMPLEXITY_ANALYSIS.md` - サンプリングモードの計算量（7節）
 
 ## 理論的な誤差（精度）
 
 ### サンプリングモードの誤差構造
 
-**モンテカルロ誤差**: $O(1/\sqrt{N})$
-
-$$
+**モンテカルロ誤差**: $O(1/\sqrt{N})$ $$
 \text{err}_{\text{MC}} \approx \frac{\sigma}{\sqrt{N}} \approx \frac{1}{\sqrt{10^6}} = 10^{-3}
 $$
 
-ここで、$\sigma$ は出力分布の標準偏差です。
+ここで、 $\sigma$ は出力分布の標準偏差です。
 
 **サンプル数との関係**:
 - $N = 10^6$ → 誤差 $\approx 10^{-3}$ （0.1%）

@@ -6,7 +6,7 @@ Laplace機構（Laplace Mechanism）は、差分プライバシーにおける�
 
 **アルゴリズム**:
 1. 入力値 $x$ を計算
-2. Laplace分布からノイズ $\eta \sim \text{Lap}(b)$ をサンプリング（$b = 1/\varepsilon$）
+2. Laplace分布からノイズ $\eta \sim \text{Lap}(b)$ をサンプリング（ $b = 1/\varepsilon$ ）
 3. $x + \eta$ を出力
 
 **数式**:
@@ -15,7 +15,7 @@ $$
 M(D) = f(D) + \text{Lap}(1/\varepsilon)
 $$
 
-ここで、$f(D)$ は入力データセット $D$ に対するクエリ関数（デフォルトでは恒等関数）です。
+ここで、 $f(D)$ は入力データセット $D$ に対するクエリ関数（デフォルトでは恒等関数）です。
 
 ## モード
 
@@ -39,19 +39,12 @@ $$
 
 ### 解析モード
 
-**全体計算量**: $O(g \log g)$
+**全体計算量**: $O(g \log g)$ **内訳**:
+1. **Laplace分布の生成**: $O(g)$ - 格子点 $g=1000$ 上でLaplace密度関数を評価
+2. **Affine変換**: $O(g)$ - 格子のシフトとスケーリング
+3. **Add演算（畳み込み）**: $O(g \log g)$ - FFTベースの畳み込み（支配的な項）
 
-**内訳**:
-1. **Laplace分布の生成**: $O(g)$
-   - 格子点 $g=1000$ 上でLaplace密度関数を評価
-2. **Affine変換**: $O(g)$
-   - 格子のシフトとスケーリング
-3. **Add演算（畳み込み）**: $O(g \log g)$
-   - FFTベースの畳み込み（支配的な項）
-
-**メモリ使用量**: $O(g)$
-
-**参照**: `docs/OPERATION_COMPLEXITY_ANALYSIS.md`
+**メモリ使用量**: $O(g)$ **参照**: `docs/OPERATION_COMPLEXITY_ANALYSIS.md`
 - Add演算（連続+連続）: 1.1.3節
 - Affine演算: 1.2節
 
@@ -59,9 +52,7 @@ $$
 
 ### 解析モードの誤差構造
 
-**総誤差**: $\text{err}_{\text{total}} = \text{err}_{\text{trunc}} + \text{err}_{\text{interp}} + \text{err}_{\text{quad}}$
-
-#### 1. 切断誤差（Truncation Error）
+**総誤差**: $\text{err}_{\text{total}} = \text{err}_{\text{trunc}} + \text{err}_{\text{interp}} + \text{err}_{\text{quad}}$ #### 1. 切断誤差（Truncation Error）
 
 Laplace分布の裾を切断することによる誤差:
 
@@ -69,8 +60,8 @@ $$
 \text{err}_{\text{trunc}} \approx e^{-\varepsilon R}
 $$
 
-- $R$: サポート範囲（デフォルト: $R = 50/\varepsilon = 500$）
-- $\varepsilon = 0.1$ の場合: $e^{-0.1 \times 500} = e^{-50} \approx 10^{-22}$（無視できる）
+- $R$ : サポート範囲（デフォルト: $R = 50/\varepsilon = 500$ ）
+- $\varepsilon = 0.1$ の場合: $e^{-0.1 \times 500} = e^{-50} \approx 10^{-22}$ （無視できる）
 
 #### 2. 補間誤差（Interpolation Error）
 
@@ -80,8 +71,7 @@ $$
 \text{err}_{\text{interp}} = O(1/g^2)
 $$
 
-- $g=1000$ の場合: $O(10^{-6})$
-- 線形補間を使用
+- $g=1000$ の場合: $O(10^{-6})$ - 線形補間を使用
 
 #### 3. 数値積分誤差（Quadrature Error）
 
@@ -91,10 +81,8 @@ $$
 \text{err}_{\text{quad}} = O(L^3/g^2)
 $$
 
-- $L$: 積分範囲の長さ（$L \approx 100/\varepsilon = 1000$）
-- $g=1000$ の場合: $O(1000^3/1000^2) = O(1000)$
-
-**実際の誤差**: 適応的格子選択により、実用上は $O(10^{-3})$ 程度に抑えられています。
+- $L$ : 積分範囲の長さ（ $L \approx 100/\varepsilon = 1000$ ）
+- $g=1000$ の場合: $O(1000^3/1000^2) = O(1000)$ **実際の誤差**: 適応的格子選択により、実用上は $O(10^{-3})$ 程度に抑えられています。
 
 ## 理論と実験結果の比較分析
 
