@@ -2,9 +2,27 @@
 
 ## アルゴリズムの説明
 
-SVT2は、SVT1の変種で、閾値に達したクエリのノイズ付き値も出力します。
+SVT2は、SVT1の変種で、TRUEが出力されるたびに閾値を再サンプリングします。
 
 **出典**: Lyu et al. 2017, Algorithm 2
+
+**アルゴリズム**:
+1. 閾値 $T = t + \text{Lap}(c/\varepsilon_1)$ を設定（ $\varepsilon_1 = \varepsilon/2$ ）
+2. 各クエリ $q_i$ に対して：
+   - ノイズ付きクエリ $\tilde{q}_i = q_i + \text{Lap}(2c/\varepsilon_2)$ を計算（ $\varepsilon_2 = \varepsilon - \varepsilon_1$ ）
+   - $\tilde{q}_i \geq T$ かを判定
+   - TRUE の場合、カウンタをインクリメントし、**新しい閾値を再サンプリング**: $T = t + \text{Lap}(c/\varepsilon_1)$
+   - カウンタが $c$ に達したら、以降は NAN を出力
+
+**数式**:
+
+$$
+T_0 = t + \text{Lap}(c/\varepsilon_1), \quad \tilde{q}_i = q_i + \text{Lap}(2c/\varepsilon_2)
+$$
+
+$$
+T_{i+1} = \begin{cases} t + \text{Lap}(c/\varepsilon_1) & \text{if } \tilde{q}_i \geq T_i \\ T_i & \text{otherwise} \end{cases}
+$$
 
 **プライバシー保証**: $\varepsilon$ -DP
 
@@ -33,7 +51,9 @@ SVT2は、SVT1の変種で、閾値に達したクエリのノイズ付き値も
 
 ## 理論的な誤差（精度）
 
-**モンテカルロ誤差**: $O(1/\sqrt{N}) \approx 10^{-3}$ ## 理論と実験結果の比較分析
+**モンテカルロ誤差**: $O(1/\sqrt{N}) \approx 10^{-3}$ 
+
+## 理論と実験結果の比較分析
 
 ### 比較: DP-Sniper vs StatDP vs DPEST
 

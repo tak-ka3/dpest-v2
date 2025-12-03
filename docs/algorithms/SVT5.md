@@ -2,9 +2,21 @@
 
 ## アルゴリズムの説明
 
-SVT5は、SVT1の誤った実装で、プライバシー違反があります。
+SVT5は、SVT1の誤った実装で、**クエリにノイズを追加せず**、カウンタや打ち切りもありません。全てのクエリを独立に閾値と比較します。
 
 **出典**: Lyu et al. 2017, Algorithm 5
+
+**アルゴリズム**:
+1. 閾値 $T = t + \text{Lap}(1/\varepsilon_1)$ を設定（ $\varepsilon_1 = \varepsilon/2$ ）
+2. 各クエリ $q_i$ に対して：
+   - **ノイズなし**で直接比較： $q_i \geq T$ かを判定
+   - カウンタや打ち切りなし
+
+**数式**:
+
+$$
+T = t + \text{Lap}(2/\varepsilon), \quad \text{output}_i = \begin{cases} 1 & \text{if } q_i \geq T \\ 0 & \text{otherwise} \end{cases}
+$$
 
 **プライバシー保証**: このアルゴリズムは差分プライバシーを満たしません（理論 ε = ∞）。
 

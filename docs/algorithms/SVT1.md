@@ -13,7 +13,7 @@ SVT1（Sparse Vector Technique 1）は、一連のクエリに対して閾値判
 **アルゴリズム**:
 1. 閾値 $T = t + \text{Lap}(1/\varepsilon_1)$ を設定（ $\varepsilon_1 = \varepsilon/2$ ）
 2. 各クエリ $q_i$ に対して：
-   - ノイズ付きクエリ $\tilde{q}_i = q_i + \text{Lap}(2c/\varepsilon_2)$ を計算（ $\varepsilon_2 = \varepsilon - \varepsilon_1$ ）
+   - ノイズ付きクエリ $\tilde{q}_i = q_i + \text{Lap}(2c/\varepsilon_2)$ を計算（ $\varepsilon_2 = \varepsilon - \varepsilon_1 = \varepsilon/2$ ）
    - $\tilde{q}_i \geq T$ かを判定
    - TRUE の場合、カウンタをインクリメント
    - カウンタが $c$ に達したら、以降は NAN を出力

@@ -2,9 +2,26 @@
 
 ## アルゴリズムの説明
 
-SVT6は、SVT1の誤った実装で、プライバシー違反があります。
+SVT6は、SVT1の誤った実装で、**カウンタや打ち切りがありません**。全てのクエリにノイズを追加して閾値と比較します。
 
 **出典**: Lyu et al. 2017, Algorithm 6
+
+**アルゴリズム**:
+1. 閾値 $T = t + \text{Lap}(1/\varepsilon_1)$ を設定（ $\varepsilon_1 = \varepsilon/2$ ）
+2. 各クエリ $q_i$ に対して：
+   - ノイズ付きクエリ $\tilde{q}_i = q_i + \text{Lap}(1/\varepsilon_2)$ を計算（ $\varepsilon_2 = \varepsilon - \varepsilon_1 = \varepsilon/2$ ）
+   - $\tilde{q}_i \geq T$ かを判定
+   - **カウンタや打ち切りなし**、全てのクエリを処理
+
+**数式**:
+
+$$
+T = t + \text{Lap}(2/\varepsilon), \quad \tilde{q}_i = q_i + \text{Lap}(2/\varepsilon)
+$$
+
+$$
+\text{output}_i = \begin{cases} 1 & \text{if } \tilde{q}_i \geq T \\ 0 & \text{otherwise} \end{cases}
+$$
 
 **プライバシー保証**: このアルゴリズムは差分プライバシーを満たしません（理論 ε = ∞）。
 

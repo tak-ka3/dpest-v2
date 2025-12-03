@@ -2,9 +2,28 @@
 
 ## アルゴリズムの説明
 
-SVT3は、SVT1の誤った実装で、閾値とクエリのノイズスケールが誤って設定されています。
+SVT3は、SVT1の変種で、TRUEの時にノイズ付きクエリ値を出力し、FALSEの時は-1000.0を出力します。ノイズスケールがSVT1と異なり、プライバシー違反があります。
 
 **出典**: Lyu et al. 2017, Algorithm 3
+
+**アルゴリズム**:
+1. 閾値 $T = t + \text{Lap}(1/\varepsilon_1)$ を設定（ $\varepsilon_1 = \varepsilon/2$ ）
+2. 各クエリ $q_i$ に対して：
+   - ノイズ付きクエリ $\tilde{q}_i = q_i + \text{Lap}(c/\varepsilon_2)$ を計算（ $\varepsilon_2 = \varepsilon - \varepsilon_1$ ）
+   - $\tilde{q}_i \geq T$ かを判定
+   - TRUE の場合、 $\tilde{q}_i$ を出力し、カウンタをインクリメント
+   - FALSE の場合、-1000.0 を出力
+   - カウンタが $c$ に達したら、以降は NAN を出力
+
+**数式**:
+
+$$
+T = t + \text{Lap}(1/\varepsilon_1), \quad \tilde{q}_i = q_i + \text{Lap}(c/\varepsilon_2)
+$$
+
+$$
+\text{output}_i = \begin{cases} \text{NAN} & \text{if count} \geq c \\ \tilde{q}_i & \text{if } \tilde{q}_i \geq T \\ -1000.0 & \text{otherwise} \end{cases}
+$$
 
 **プライバシー保証**: このアルゴリズムは差分プライバシーを満たしません（理論 ε = ∞）。
 
