@@ -2,7 +2,7 @@
 
 ## アルゴリズムの説明
 
-NoisyHist2は、NoisyHist1の **誤った実装** です。Laplaceノイズのスケールパラメータが誤って設定されており、 $10\varepsilon$ -差分プライバシーとなっています（意図した $\varepsilon$ -差分プライバシーではない）。
+NoisyHist2は、NoisyHist1の **誤った実装** です。Laplaceノイズのスケールパラメータが誤って設定されており、 $10\varepsilon$ -DPとなっています（意図した $\varepsilon$ -DPではない）。
 
 **出典**:
 > Zeyu Ding, Yuxin Wang, Guanhong Wang, Danfeng Zhang, and Daniel Kifer. 2018.
@@ -20,7 +20,10 @@ $$
 M(D) = (h_1 + \text{Lap}(\varepsilon), h_2 + \text{Lap}(\varepsilon), \ldots, h_m + \text{Lap}(\varepsilon))
 $$
 
-**プライバシー保証**: このアルゴリズムは ** $(1/\varepsilon)$ -差分プライバシー** を満たします。
+**プライバシー保証**: このアルゴリズムは ** $(1/\varepsilon)$ -DP** を満たします。
+
+**隣接性の定義**: $\|\cdot\|_1$ （L1ノルム、ハミング距離が1）
+- 2つの入力が1つの要素のみ異なる場合に隣接とみなす
 - 意図: $\varepsilon = 0.1$ → 0.1-DP
 - 実際: $\varepsilon = 0.1$ → $(1/0.1) = 10$ -DP（**100倍弱い**）
 

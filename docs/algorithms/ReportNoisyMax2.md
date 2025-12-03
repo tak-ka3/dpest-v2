@@ -2,7 +2,7 @@
 
 ## アルゴリズムの説明
 
-ReportNoisyMax2は、ReportNoisyMax1の変種で、Laplaceノイズの代わりに指数分布ノイズを使用します。正しい実装であり、 $\varepsilon$ -差分プライバシーを満たします。
+ReportNoisyMax2は、ReportNoisyMax1の変種で、Laplaceノイズの代わりに指数分布ノイズを使用します。正しい実装であり、 $\varepsilon$ -DPを満たします。
 
 **出典**:
 > Zeyu Ding, Yuxin Wang, Guanhong Wang, Danfeng Zhang, and Daniel Kifer. 2018.
@@ -18,7 +18,10 @@ $$
 M(D) = \text{argmax}_i (q_i + \text{Exp}(2/\varepsilon))
 $$
 
-**プライバシー保証**: クエリの $L_\infty$ 感度が1の場合、 $\varepsilon$ -差分プライバシーを満たします。
+**プライバシー保証**: クエリの $L_\infty$ 感度が1の場合、 $\varepsilon$ -DPを満たします。
+
+**隣接性の定義**: $\|\cdot\|_\infty$ （L∞ノルム、任意の1要素の変更）
+- 2つの入力が任意の1要素の値のみ異なる場合に隣接とみなす
 
 ## モード
 

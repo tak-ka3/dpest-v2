@@ -2,7 +2,7 @@
 
 ## アルゴリズムの説明
 
-NoisyHist1は、ヒストグラムの各ビンに独立したLaplaceノイズを追加する差分プライバシーアルゴリズムです。このアルゴリズムは正しい実装であり、 $\varepsilon$ -差分プライバシーを満たします。
+NoisyHist1は、ヒストグラムの各ビンに独立したLaplaceノイズを追加する差分プライバシーアルゴリズムです。このアルゴリズムは正しい実装であり、 $\varepsilon$ -DPを満たします。
 
 **出典**:
 > Zeyu Ding, Yuxin Wang, Guanhong Wang, Danfeng Zhang, and Daniel Kifer. 2018.
@@ -20,7 +20,10 @@ $$
 M(D) = (h_1 + \text{Lap}(1/\varepsilon), h_2 + \text{Lap}(1/\varepsilon), \ldots, h_m + \text{Lap}(1/\varepsilon))
 $$
 
-**プライバシー保証**: ヒストグラムの $L_1$ 感度が1の場合、 $\varepsilon$ -差分プライバシーを満たします。
+**プライバシー保証**: ヒストグラムの $L_1$ 感度が1の場合、 $\varepsilon$ -DPを満たします。
+
+**隣接性の定義**: $\|\cdot\|_1$ （L1ノルム、ハミング距離が1）
+- 2つの入力が1つの要素のみ異なる場合に隣接とみなす
 
 ## モード
 

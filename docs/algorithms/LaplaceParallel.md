@@ -15,7 +15,10 @@ $$
 M(D) = (x + \text{Lap}(1/\varepsilon), x + \text{Lap}(1/\varepsilon), \ldots, x + \text{Lap}(1/\varepsilon))
 $$
 
-**プライバシー保証**: 並列合成により、全体で $\varepsilon$ -差分プライバシーを満たします。
+**プライバシー保証**: 並列合成により、全体で $\varepsilon$ -DPを満たします。
+
+**隣接性の定義**: $\|\cdot\|_1$ （L1ノルム、ハミング距離が1）
+- 2つの入力が1つの要素のみ異なる場合に隣接とみなす
 
 ## モード
 

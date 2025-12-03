@@ -24,7 +24,10 @@ $$
 T = t + \text{Lap}(2/\varepsilon), \quad \tilde{q}_i = q_i + \text{Lap}(4c/\varepsilon)
 $$
 
-**プライバシー保証**: $\varepsilon$ -差分プライバシーを満たします。
+**プライバシー保証**: $\varepsilon$ -DPを満たします。
+
+**隣接性の定義**: $\|\cdot\|_\infty$ （L∞ノルム、任意の1要素の変更）
+- 2つの入力が任意の1要素の値のみ異なる場合に隣接とみなす
 
 ## モード
 
