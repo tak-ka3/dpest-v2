@@ -9,9 +9,27 @@ RAPPORは、ローカル差分プライバシーを保証するランダム化�
 > RAPPOR: Randomized Aggregatable Privacy-Preserving Ordinal Response. CCS 2014.
 > Steps 1-3
 
+**Python実装**:
+```python
+def rappor(value, eps, n_hashes=4, filter_size=20, f=0.75, p=0.45, q=0.55, rng=None):
+    if rng is None:
+        rng = np.random.default_rng()
+
+    perm = onetime_rappor(value, eps, n_hashes=n_hashes, filter_size=filter_size, f=f, rng=rng)
+
+    out = np.empty_like(perm)
+    for i, b in enumerate(perm):
+        if b == 1:
+            out[i] = 1 if rng.random() < q else 0
+        else:
+            out[i] = 1 if rng.random() < p else 0
+    return out
+```
+
 **アルゴリズム**:
 1. 入力値をブルームフィルタにエンコード
 2. 永続的ランダム化応答を適用
+    - ここまではOneTime RAPPORと同様なので、filter_sizeのビット配列が返される
 3. 瞬時ランダム化応答を適用: ビット=1のとき確率 $q$ で1を保持、ビット=0のとき確率 $p$ で1にフリップ
 
 **プライバシー保証**: 適切なパラメータ設定で $0.40$ -差分プライバシー
