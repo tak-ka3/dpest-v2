@@ -33,14 +33,10 @@ def one_time_rappor(
         filter_bits[idx] = 1
 
     cond_randomize = Dist.from_atoms([(1.0, f), (0.0, 1.0 - f)])
-    cond_flip = Dist.from_atoms([(1.0, 0.5), (0.0, 0.5)])
-    bit_one = Dist.deterministic(1.0)
-    bit_zero = Dist.deterministic(0.0)
-    random_bit = branch(cond_flip, bit_one, bit_zero)
+    random_bit = Dist.from_atoms([(1.0, 0.5), (0.0, 0.5)])
 
     dists: List[Dist] = []
     for bit in filter_bits:
-        base = Dist.deterministic(float(bit))
-        perm = branch(cond_randomize, random_bit, base)
+        perm = branch(cond_randomize, random_bit, float(bit))
         dists.append(perm)
     return dists
