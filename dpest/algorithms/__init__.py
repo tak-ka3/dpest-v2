@@ -23,6 +23,8 @@ from .one_time_rappor import one_time_rappor
 from .rappor import rappor
 from .noisy_max_sum import noisy_max_sum
 from .truncated_geometric import truncated_geometric
+from .prefix_sum import prefix_sum
+from .svt34_parallel import svt34_parallel
 from .registry import get_registered_dist_functions
 
 __all__ = [
@@ -34,6 +36,8 @@ __all__ = [
     'one_time_rappor', 'rappor',
     'noisy_max_sum',
     'truncated_geometric',
+    'prefix_sum',
+    'svt34_parallel',
 ]
 
 # Automatically expose all auto-generated dist functions (e.g., svt1_dist)

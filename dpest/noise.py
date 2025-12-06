@@ -42,7 +42,7 @@ class Laplace:
         """
         if support_range is None:
             # 99.9%の確率質量を含む範囲を設定
-            support_range = self.b * 7  #約99.9%
+            support_range = self.b * 20  #約99.9%
         
         x = np.linspace(self.mu - support_range, self.mu + support_range, grid_size)
         f = self._pdf(x)

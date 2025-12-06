@@ -157,9 +157,6 @@ class Engine:
 
         if plan.mode == 'sampling':
             # サンプリングモード: アルゴリズムをサンプリングベースで再実行
-            import warnings
-            warnings.warn("Sampling mode detected due to variable dependencies. Executing with Monte Carlo sampling.",
-                          UserWarning)
             return self._execute_sampling(
                 plan.graph,
                 input_dist,
