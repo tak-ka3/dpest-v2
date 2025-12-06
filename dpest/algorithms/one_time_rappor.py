@@ -32,10 +32,10 @@ def one_time_rappor(
         idx = mmh3.hash(str(val), seed=i) % filter_size
         filter_bits[idx] = 1
 
-    cond_randomize = Dist.from_atoms([(1.0, f), (0.0, 1.0 - f)])
 
     dists: List[Dist] = []
     for bit in filter_bits:
+        cond_randomize = Dist.from_atoms([(1.0, f), (0.0, 1.0 - f)])
         random_bit = Dist.from_atoms([(1.0, 0.5), (0.0, 0.5)])
         perm = branch(cond_randomize, random_bit, float(bit))
         dists.append(perm)
