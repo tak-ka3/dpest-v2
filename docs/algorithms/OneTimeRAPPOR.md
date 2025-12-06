@@ -49,8 +49,8 @@ def onetime_rappor(value, eps, n_hashes=4, filter_size=20, f=0.95, rng=None):
 **解析モード**
 
 ## DPESTで形成される計算グラフ
-赤: 確率変数
-緑：オペレーション
+- 赤: 確率変数
+- 緑：オペレーション
 
 <img src="./img/OneTimeRAPPOR.png" />
 
