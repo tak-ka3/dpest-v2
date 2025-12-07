@@ -72,4 +72,4 @@ LaplaceMechanismと同様、定数+Laplace分布の単純なシフトであり�
    - DP-Sniper: 誤差65%（大きく過小評価）
    - StatDP: 誤差86%（大きく過小評価）
 2. **速度**: DPEST は1500-39000倍高速
-3. **スケーラビリティ**: $n$ が増加しても、DPESTは線形にスケール（ $O(n \times g \log g)$ ）
+3. **スケーラビリティ**: $n$ が増加しても、DPESTは線形にスケール（ $O(n \times g)$ ）
