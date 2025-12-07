@@ -47,50 +47,25 @@ $$
 
 ### 解析モード
 
-**全体計算量**: $O(m \times g \log g)$ **内訳**:
+**全体計算量**: $O(m \times g)$ **内訳**:
 1. **Laplace分布の生成**: $O(m \times g)$ - $m=5$ 個の独立なLaplace分布を生成
    - 各分布は格子点 $g=1000$ 上で評価
-2. **Add演算（各ビンに対する畳み込み）**: $O(m \times g \log g)$ - $m=5$ 回の独立な畳み込み
-   - 各畳み込みは $O(g \log g)$ （FFTベース）
+2. **Add演算（定数+連続）**: $O(m \times g)$ - $m=5$ 回の独立なシフト操作
 3. **並列化**: 独立な演算のため、並列実行可能
 
 **実効計算量**（ $m=5$ , $g=1000$ ）:
 
 $$
-5 \times 1000 \times \log_2(1000) \approx 5 \times 10^4 \text{ 演算}
+5 \times 1000 \approx 5 \times 10^3 \text{ 演算}
 $$
 
-**参照**: `docs/OPERATION_COMPLEXITY_ANALYSIS.md` - Add演算（連続+連続）: 1.1.3節
+**参照**: `docs/OPERATION_COMPLEXITY_ANALYSIS.md` - Add演算（離散+連続）: 1.1.2節
 
 ## 理論的な誤差（精度）
 
 ### 解析モードの誤差構造
 
-**総誤差**: $\text{err}_{\text{total}} = \text{err}_{\text{trunc}} + \text{err}_{\text{interp}} + \text{err}_{\text{quad}}$ 各ビンの誤差は独立であり、LaplaceMechanismと同様の誤差特性を持ちます。
-
-#### 1. 切断誤差（Truncation Error）
-
-$$
-\text{err}_{\text{trunc}} \approx e^{-\varepsilon R} = e^{-0.1 \times 500} \approx 10^{-22}
-$$
-
-（無視できる）
-
-#### 2. 補間誤差（Interpolation Error）
-
-$$
-\text{err}_{\text{interp}} = O(1/g^2) = O(10^{-6})
-$$
-
-#### 3. 数値積分誤差（Quadrature Error）
-
-台形則による誤差（支配的）:
-
-$$
-\text{err}_{\text{quad}} = O(L^3/g^2) \approx O(10^{-3})
-$$
-
-**複数ビンの影響**: $m=5$ 個のビンがあっても、各ビンの誤差は独立なので、全体の誤差は単一ビンと同程度（ $O(10^{-3})$ ）に保たれます。
+定数+Laplace分布の単純なシフトであり、理論的にはアルゴリズム自体の誤差はありません。観測される誤差（0.2%）は格子近似と数値計算による実装誤差です。各ビンの計算は独立です。
 
 ## 理論と実験結果の比較分析
 
