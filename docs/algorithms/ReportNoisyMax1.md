@@ -58,12 +58,13 @@ $$
    - 各畳み込みは $O(g \log g)$ （FFTベース）
 3. **Argmax演算**: $O(m^2 \times g^2)$ ← **支配的**
 
-   各インデックス $i$ が最大となる確率を計算すると、 $P(\text{argmax} = i) = \int_{-\infty}^{\infty} f_{Z_i}(z) \prod_{j \neq i} F_{Z_j}(z) \, dz$ となる。ここで $f_{Z_i}$ は $Z_i = q_i + \eta_i$ の確率密度関数、$F_{Z_j}$ は累積分布関数（CDF）
+   各インデックス $i$ が最大となる確率を計算すると、 $P(\text{argmax} = i) = \int_{-\infty}^{\infty} f_{Z_i}(z) \prod_{j \neq i} F_{Z_j}(z) \, dz$ となる。ここで $f_{Z_i}$ は $Z_i = q_i + \eta_i$ の確率密度関数、 $F_{Z_j}$ は累積分布関数（CDF）
 
    **計算量の内訳**:
    - 外側ループ（各インデックス $i$ ）: $m=5$ 回
    - 内側ループ（他の分布 $j$ ）: $m-1=4$ 回
-   - 各CDF計算（`_compute_cdf_on_grid`）: $O(g^2)$ - x_gridの各点（ $g$ 個）について、累積和をtrapzで計算（ $O(g)$ ）
+   - 各CDF計算（`_compute_cdf_on_grid`）: $O(g^2)$ 
+      - x_gridの各点（ $g$ 個）について、累積和をtrapzで計算（ $O(g)$ ）
      - 二重ループ構造: 外側 $g$ 回 × 内側 $O(g)$ = $O(g^2)$
 
 **実効計算量**（ $m=5$ , $g=1000$ ）:
