@@ -67,8 +67,6 @@ $$
 5 \times 1000 \approx 5 \times 10^3 \text{ 演算}
 $$
 
-**参照**: `docs/OPERATION_COMPLEXITY_ANALYSIS.md` - Add演算（離散+連続）: 1.1.2節
-
 ## 理論的な誤差（精度）
 
 ### 解析モードの誤差構造
