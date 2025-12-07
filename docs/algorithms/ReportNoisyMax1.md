@@ -50,13 +50,23 @@ $$
 **全体計算量**: $O(m^2 \times g^2)$
 
 **内訳**:
-1. **Laplace分布の生成**: $O(m \times g)$ 
+1. **Laplace分布の生成**: $O(m \times g)$
    - $m=5$ 個の独立なLaplace分布を生成
    - 各分布は格子点 $g=1000$ 上で評価
-2. **Add演算（各要素に対する畳み込み）**: $O(m \times g \log g)$ 
+2. **Add演算（各要素に対する畳み込み）**: $O(m \times g \log g)$
    - $m=5$ 回の独立な畳み込み
    - 各畳み込みは $O(g \log g)$ （FFTベース）
 3. **Argmax演算**: $O(m^2 \times g^2)$ ← **支配的**
+
+   各インデックス $i$ が最大となる確率を計算：
+   
+   $$
+   P(\text{argmax} = i) = \int_{-\infty}^{\infty} f_{Z_i}(z) \prod_{j \neq i} F_{Z_j}(z) \, dz
+   $$
+
+   ここで $f_{Z_i}$ は $Z_i = q_i + \eta_i$ の確率密度関数、$F_{Z_j}$ は累積分布関数（CDF）
+
+   **計算量の内訳**:
    - 外側ループ（各インデックス $i$ ）: $m=5$ 回
    - 内側ループ（他の分布 $j$ ）: $m-1=4$ 回
    - 各CDF計算（`_compute_cdf_on_grid`）: $O(g^2)$ - x_gridの各点（ $g$ 個）について、累積和をtrapzで計算（ $O(g)$ ）
