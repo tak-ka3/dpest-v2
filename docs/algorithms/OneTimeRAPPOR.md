@@ -86,8 +86,6 @@ def onetime_rappor(value, eps, n_hashes=4, filter_size=20, f=0.95, rng=None):
 
 **実効計算量**: $O(4 + 80) \approx O(84)$ 演算
 
-**メモリ使用量**: $O(b) = O(20)$ （出力ビット列の長さ）
-
 ## 理論的な誤差（精度）
 
 Branch演算（離散分布のみ）の誤差: 理論上0（完全な解析計算）

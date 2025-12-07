@@ -73,8 +73,6 @@ $$
 m^2 \times g^2 = 25 \times 10^6 = 2.5 \times 10^7 \text{ 演算}
 $$
 
-**メモリ使用量**: $O(m \times g) = O(5000)$
-
 **参照**: `docs/OPERATION_COMPLEXITY_ANALYSIS.md` - Argmax演算（連続分布）: 3.1節
 
 ## 理論的な誤差（精度）

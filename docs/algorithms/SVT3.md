@@ -7,13 +7,7 @@ SVT3は、SVT1の変種で、TRUEの時にノイズ付きクエリ値を出力�
 **出典**: Lyu et al. 2017, Algorithm 3
 
 **アルゴリズム**:
-1. 閾値 $T = t + \text{Lap}(1/\varepsilon_1)$ を設定（ $\varepsilon_1 = \varepsilon/2$ ）
-2. 各クエリ $q_i$ に対して：
-   - ノイズ付きクエリ $\tilde{q}_i = q_i + \text{Lap}(c/\varepsilon_2)$ を計算（ $\varepsilon_2 = \varepsilon - \varepsilon_1$ ）
-   - $\tilde{q}_i \geq T$ かを判定
-   - TRUE の場合、 $\tilde{q}_i$ を出力し、カウンタをインクリメント
-   - FALSE の場合、-1000.0 を出力
-   - カウンタが $c$ に達したら、以降は NAN を出力
+<img src="img/SVT3.png" />
 
 **数式**:
 

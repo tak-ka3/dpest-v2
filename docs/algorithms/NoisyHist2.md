@@ -68,8 +68,7 @@ $$
 5 \times 1000 \times \log_2(1000) \approx 5 \times 10^4 \text{ 演算}
 $$
 
-**メモリ使用量**: $O(m \times g) = O(5000)$ **参照**: `docs/OPERATION_COMPLEXITY_ANALYSIS.md`
-- Add演算（連続+連続）: 1.1.3節
+**参照**: `docs/OPERATION_COMPLEXITY_ANALYSIS.md` - Add演算（連続+連続）: 1.1.3節
 
 ## 理論的な誤差（精度）
 

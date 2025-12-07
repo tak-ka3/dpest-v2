@@ -7,10 +7,7 @@ SVT5は、SVT1の誤った実装で、**クエリにノイズを追加せず**�
 **出典**: Lyu et al. 2017, Algorithm 5
 
 **アルゴリズム**:
-1. 閾値 $T = t + \text{Lap}(1/\varepsilon_1)$ を設定（ $\varepsilon_1 = \varepsilon/2$ ）
-2. 各クエリ $q_i$ に対して：
-   - **ノイズなし**で直接比較： $q_i \geq T$ かを判定
-   - カウンタや打ち切りなし
+<img src="img/SVT5.png" />
 
 **数式**:
 

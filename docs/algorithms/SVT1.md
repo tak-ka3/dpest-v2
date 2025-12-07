@@ -11,12 +11,7 @@ SVT1（Sparse Vector Technique 1）は、一連のクエリに対して閾値判
 > Algorithm 1
 
 **アルゴリズム**:
-1. 閾値 $T = t + \text{Lap}(1/\varepsilon_1)$ を設定（ $\varepsilon_1 = \varepsilon/2$ ）
-2. 各クエリ $q_i$ に対して：
-   - ノイズ付きクエリ $\tilde{q}_i = q_i + \text{Lap}(2c/\varepsilon_2)$ を計算（ $\varepsilon_2 = \varepsilon - \varepsilon_1 = \varepsilon/2$ ）
-   - $\tilde{q}_i \geq T$ かを判定
-   - TRUE の場合、カウンタをインクリメント
-   - カウンタが $c$ に達したら、以降は NAN を出力
+<img src="img/SVT1.png" />
 
 **数式**:
 
@@ -62,13 +57,15 @@ $$
 N \times m = 10^6 \times 10 = 10^7 \text{ 演算}
 $$
 
-**メモリ使用量**: $O(N) = O(10^6)$ **参照**: `docs/OPERATION_COMPLEXITY_ANALYSIS.md` - サンプリングモードの計算量（7節）
+**参照**: `docs/OPERATION_COMPLEXITY_ANALYSIS.md` - サンプリングモードの計算量（7節）
 
 ## 理論的な誤差（精度）
 
 ### サンプリングモードの誤差構造
 
-**モンテカルロ誤差**: $O(1/\sqrt{N})$ $$
+**モンテカルロ誤差**: $O(1/\sqrt{N})$ 
+
+$$
 \text{err}_{\text{MC}} \approx \frac{\sigma}{\sqrt{N}} \approx \frac{1}{\sqrt{10^6}} = 10^{-3}
 $$
 
@@ -124,21 +121,3 @@ $$
 2. **速度**: DPESTはDP-Sniperより **4.6倍遅い**
    - サンプリングモードの制約: $N=10^6$ が大きい
    - 解析モードなら、さらに高速化可能（ただしSVT1は解析が困難）
-
-### サンプリングモードの課題
-
-SVT1は、サンプリングモードの課題を示します：
-
-1. **実行時間の長さ**: $O(N \times m)$ で $N=10^6$ が大きい
-2. **精度の限界**: モンテカルロ誤差 $O(1/\sqrt{N})$ は $N$ を増やすことで改善可能だが、実行時間とのトレードオフ
-3. **状態依存性**: Branch演算により、各クエリの結果が次のクエリに影響
-4. **解析モードとの比較**:
-   - 解析モード（LaplaceMechanism）: 0.01秒、誤差0.2%
-   - サンプリングモード（SVT1）: 276.45秒、誤差8.0%
-
-**改善の余地**:
-- サンプル数 $N$ の削減（精度とトレードオフ）
-- 並列化（GPUなど）
-- 近似的な解析手法の開発
-
-**参照**: `docs/ANALYTIC_MODE_SUPERIORITY.md` - 解析モードの優位性とサンプリングモードの課題

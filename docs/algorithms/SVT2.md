@@ -7,12 +7,7 @@ SVT2は、SVT1の変種で、TRUEが出力されるたびに閾値を再サン�
 **出典**: Lyu et al. 2017, Algorithm 2
 
 **アルゴリズム**:
-1. 閾値 $T = t + \text{Lap}(c/\varepsilon_1)$ を設定（ $\varepsilon_1 = \varepsilon/2$ ）
-2. 各クエリ $q_i$ に対して：
-   - ノイズ付きクエリ $\tilde{q}_i = q_i + \text{Lap}(2c/\varepsilon_2)$ を計算（ $\varepsilon_2 = \varepsilon - \varepsilon_1$ ）
-   - $\tilde{q}_i \geq T$ かを判定
-   - TRUE の場合、カウンタをインクリメントし、**新しい閾値を再サンプリング**: $T = t + \text{Lap}(c/\varepsilon_1)$
-   - カウンタが $c$ に達したら、以降は NAN を出力
+<img src="img/SVT2.png" />
 
 **数式**:
 
