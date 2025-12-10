@@ -7,15 +7,16 @@ SVT5は、SVT1の誤った実装で、**クエリにノイズを追加せず**�
 **出典**: Lyu et al. 2017, Algorithm 5
 
 **アルゴリズム**:
-1. 閾値 $T = t + \text{Lap}(1/\varepsilon_1)$ を設定（ $\varepsilon_1 = \varepsilon/2$ ）
-2. 各クエリ $q_i$ に対して：
-   - **ノイズなし**で直接比較： $q_i \geq T$ かを判定
-   - カウンタや打ち切りなし
+<img src="img/SVT5.png" />
 
 **数式**:
 
 $$
-T = t + \text{Lap}(2/\varepsilon), \quad \text{output}_i = \begin{cases} 1 & \text{if } q_i \geq T \\ 0 & \text{otherwise} \end{cases}
+T = t + \text{Lap}(2/\varepsilon), \quad
+\text{output}_i = \begin{cases}
+1 & \text{if } q_i \geq T \\
+0 & \text{otherwise}
+\end{cases}
 $$
 
 **プライバシー保証**: このアルゴリズムは差分プライバシーを満たしません（理論 ε = ∞）。
@@ -39,7 +40,7 @@ $$
 
 **データソース**: `docs/privacy_loss_report.md`
 
-**解釈**: DPESTは無限大のプライバシー損失を正確に検出。
+**解釈**: DPESTは無限大のプライバシー損失を正確に検出。このアルゴリズムは出力のカテゴリ数が $2^{10} = 1024$ と比較的少なく、サンプル数（$N=10^6$）がそれに比べて十分多いため、サンプリングモードでも全ての出力ビンを適切にカバーでき、正確に無限大を検出できています。
 
 ## 理論的な計算量
 
@@ -55,4 +56,4 @@ $$
 | StatDP | 14.314 | 180秒 |
 | DPEST | inf | 24.79秒 |
 
-**結論**: DPESTは無限大のプライバシー損失を正確に検出。他手法は有限値を推定し、プライバシー違反の深刻さを過小評価。実行時間も1.7-7.3倍高速。
+**結論**: DPESTは無限大のプライバシー損失を正確に検出。他手法は有限値を推定し、プライバシー違反の深刻さを過小評価。実行時間もDP-Sniperより1.7倍高速、StatDPより7.3倍高速。

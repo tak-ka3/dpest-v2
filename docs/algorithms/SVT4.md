@@ -7,12 +7,7 @@ SVT4は、SVT1の変種で、プライバシーパラメータの分割とノイ
 **出典**: Lyu et al. 2017, Algorithm 4
 
 **アルゴリズム**:
-1. 閾値 $T = t + \text{Lap}(1/\varepsilon_1)$ を設定（ $\varepsilon_1 = \varepsilon/4$ ）
-2. 各クエリ $q_i$ に対して：
-   - ノイズ付きクエリ $\tilde{q}_i = q_i + \text{Lap}(1/\varepsilon_2)$ を計算（ $\varepsilon_2 = \varepsilon - \varepsilon_1$ ）
-   - $\tilde{q}_i \geq T$ かを判定
-   - TRUE の場合、カウンタをインクリメント
-   - カウンタが $c$ に達したら、以降は NAN を出力
+<img src="img/SVT4.png" />
 
 **数式**:
 
@@ -47,7 +42,9 @@ $$
 
 ## 理論的な誤差（精度）
 
-**モンテカルロ誤差**: $O(1/\sqrt{N}) \approx 10^{-3}$ ## 理論と実験結果の比較分析
+**モンテカルロ誤差**: $O(1/\sqrt{N}) \approx 10^{-3}$ 
+
+## 理論と実験結果の比較分析
 
 ### 比較: DP-Sniper vs StatDP vs DPEST
 
