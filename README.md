@@ -201,11 +201,12 @@ docs/配下には以下のドキュメントが含まれています：
 
 ### 主要ドキュメント
 
-- **[DESIGN.md](docs/DESIGN.md)**: 各演算の数学的定義と実装方針
+- **[PRIVACY_LOSS_ESTIMATION.md](docs/PRIVACY_LOSS_ESTIMATION.md)**: プライバシー損失の推定方法の詳細（最初に読むべき）
+- **[ACCURACY_AND_PERFORMANCE_ANALYSIS.md](docs/ACCURACY_AND_PERFORMANCE_ANALYSIS.md)**: 解析手法とサンプリング手法の精度・性能分析
+- **[ALGORITHM_SUMMARY.md](docs/algorithms/ALGORITHM_SUMMARY.md)**: 実装済み全18アルゴリズムの一覧と詳細
 - **[OPERATIONS.md](docs/OPERATIONS.md)**: 演算の一覧と概要
 - **[OPERATION_DETAILS.md](docs/OPERATION_DETAILS.md)**: 演算の詳細な計算方法とアルゴリズム
-- **[ACCURACY_AND_PERFORMANCE_ANALYSIS.md](docs/ACCURACY_AND_PERFORMANCE_ANALYSIS.md)**: 解析手法とサンプリング手法の精度・性能分析
-- **[PRIVACY_LOSS_ESTIMATION.md](docs/PRIVACY_LOSS_ESTIMATION.md)**: プライバシー損失の推定方法の詳細
+- **[DESIGN.md](docs/DESIGN.md)**: 各演算の数学的定義と実装方針
 
 ### 計算量解析
 
