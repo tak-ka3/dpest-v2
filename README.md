@@ -2,177 +2,250 @@
 
 差分プライバシー ε 推定フレームワーク
 
-## 手法の概要
+## 概要
 
-dpest は差分プライバシー (DP) アルゴリズムを「確率分布オブジェクト (`Dist`) の計算グラフ」として表現し、その分布を解析またはサンプリングによって求めることで ε を推定します。各ステップはスカラー値ではなく分布を入力・出力とする演算で記述します。
+`dpest` は差分プライバシー (DP) アルゴリズムを「確率分布オブジェクト (`Dist`) の計算グラフ」として表現し、その分布を解析またはサンプリングによって求めることで ε を推定するPythonライブラリです。各ステップはスカラー値ではなく分布を入力・出力とする演算で記述します。
 
-- **Atoms**: 離散的な確率質量（確定値など）を保持。
-- **Density grids**: 連続分布を格子状に離散化。
-- **Samplers**: 解析が難しい場合のカスタム乱数生成器。
+**主な特徴**:
+- 確率分布の混合表現（離散分布 + 連続分布）
+- 依存関係を自動検出し、解析モード/サンプリングモードを自動選択
+- 18種類の差分プライバシーアルゴリズムを実装
 
-`add`, `affine`, `geq`, `mux`, `max` などの演算はすべて `Dist` 上で定義されており、アルゴリズムを宣言的に組み立てられるようになっています。
+**実装されているアルゴリズム**:
+- Sparse Vector Technique (SVT1-6, NumericalSVT, SVT34Parallel)
+- Report Noisy Max (ReportNoisyMax1-4, NoisyMaxSum)
+- RAPPOR (OneTimeRAPPOR, RAPPOR)
+- Noisy Histogram (NoisyHist1-2)
+- Laplace Mechanism (LaplaceMechanism, LaplaceParallel)
+- その他 (PrefixSum, TruncatedGeometric)
 
-### コンパイル時の解析とサンプリング切り替え
+## クイックスタート
 
-`dpest.engine.compile` によりアルゴリズムをコンパイルすると、エンジンは計算グラフを解析します。
+### インストール
 
-1. **依存関係解析**:  同じ乱数源に依存する分布が存在すると、独立性の仮定が崩れるため解析モードでは扱えません。
-2. **モード選択**:
-   - 依存が問題にならなければ、解析的または格子上での数値計算により正確な分布を求めます。
-   - 依存がある場合はサンプリングモードに切り替え、ベクトル化された Monte Carlo 実行で ` _joint_samples` を生成します。このジョイントサンプルは出力要素間の相関を保持します。
+```bash
+# リポジトリのクローン
+git clone <repository-url>
+cd dpest1
 
-### プライバシー損失 (ε) 推定フロー
+# 依存関係のインストール
+pip install -r requirements.txt
+```
 
-`dpest.analysis.estimate_algorithm` が ε 推定の共通ルートです。
+### 基本的な使い方
 
-1. 隣接データセットの組 (change-one adjacency) を生成。
-2. 各組について、アルゴリズムの分布関数 (`svt1_dist`, `noisy_hist1_dist` など) を実行し、2つの出力分布を得る。
-3. ε を計算:
-   - ジョイントサンプルがあれば `epsilon_from_list_joint` で多次元ヒストグラム（NaN パターンも含む）を評価。
-   - 厳密な分布オブジェクトなら `epsilon_from_dist` で解析的に計算。
-4. すべての隣接ペアで最大の ε を採用。
+```bash
+# 特定のアルゴリズムのプライバシー損失を推定
+python examples/privacy_loss_single_algorithm.py SVT1 \
+  --config examples/privacy_loss_single_config.json
 
-こうすることで、分布演算で記述されたアルゴリズムはすべて同じ推定パイプラインに乗ります。
+# 別のアルゴリズムを試す
+python examples/privacy_loss_single_algorithm.py ReportNoisyMax1 \
+  --config examples/privacy_loss_single_config.json
 
-#### compile() 呼び出しの流れ
+# 複数アルゴリズムの比較レポートを生成
+python examples/privacy_loss_report.py
+
+# 生成されたレポートを確認
+cat docs/privacy_loss_report.md
+```
+
+### プライバシー損失の推定手法
+
+dpestは2つの推定モードを提供します：
+
+1. **解析モード（Analytic Mode）**: 入力の確率変数が互いに独立な場合
+   - 格子近似（g=1000点）による数値計算
+   - 高速・高精度（相対誤差 0-6%）
+
+2. **サンプリングモード（Sampling Mode）**: 依存関係がある場合（Branch演算、共通変数参照など）
+   - Monte Carloサンプリング（N=100,000サンプル）
+   - 依存関係を正確に扱える（相対誤差 ±6%）
+
+詳細は[PRIVACY_LOSS_ESTIMATION.md](docs/PRIVACY_LOSS_ESTIMATION.md)を参照してください。
+
+## アーキテクチャ
+
+### ディレクトリ構成
+
+```
+dpest1/
+├── dpest/                      # メインパッケージ
+│   ├── core.py                 # 確率分布クラス (Dist)
+│   ├── noise.py                # ノイズ分布 (Laplace, Exponential)
+│   ├── operations/             # 確率分布演算 (Add, Max, Argmax, Branch等)
+│   ├── algorithms/             # DPアルゴリズム実装 (SVT, Noisy Max, RAPPOR等)
+│   ├── analysis/               # プライバシー損失推定
+│   └── utils/                  # ユーティリティ
+├── examples/                   # 使用例
+└── docs/                       # ドキュメント
+```
+
+### 中核コンポーネント
+
+#### 1. Dist クラス（core.py）
+
+確率分布を表現する中心的なクラスです。
 
 ```python
-from dpest.engine import compile
-from dpest.algorithms.svt1 import svt1
+class Dist:
+    """確率分布の表現
 
-algo = compile(lambda q: svt1(q, eps=0.1))
-output_dist = algo(input_distributions)
+    Attributes:
+        atoms: 点質量（離散分布）のリスト [(value, weight), ...]
+        density: 連続密度の格子近似 {'x': grid_x, 'f': grid_f, 'dx': dx}
+        support: サポート区間のリスト
+        _joint_samples: サンプリングモード用のジョイントサンプル
+    """
 ```
 
-- **1. 計算グラフ構築**: `compile()` はラムダを一度走らせ、内部で生成された `Dist` それぞれに `Node` 情報を付与して依存関係を収集します。
-- **2. 依存解析**: `Node.dependencies` が重なる場合や `needs_sampling` フラグが立つ場合は解析的には扱えないため、エンジンはモードを `sampling` に設定します。
-- **3. 実行プラン生成**: `Engine.ExecutionPlan` に解析結果と初期出力を格納。解析モードなら即結果を返す準備が整い、サンプリングモードなら `_execute_sampling` 用の設定が保存されます。
-- **4. 実行**: `algo(input_distributions)` を呼ぶと `_create_input_distribution` が入力を `Dist` 化し、上記プランに基づいて解析またはサンプリングで分布を返します。サンプリングではベクトル化された Monte Carlo 実行で `Sampled.from_samples` を呼び、得られた `_joint_samples` が ε 推定の joint histogram に利用されます。
+**特徴**:
+- 離散分布と連続分布の混合表現
+- FFTベースの効率的な畳み込み計算（解析モード）
+- サンプリングベースの依存関係処理（サンプリングモード）
 
-### `@auto_dist` によるラッパー自動生成
+**主要メソッド**:
+- `from_atoms()`: 離散分布の作成
+- `from_density()`: 連続分布の作成
+- `deterministic()`: 確定値（退化分布）の作成
+- `sample()`: サンプリング
+- `has_joint_samples()`: サンプリングモードかどうかの判定
 
-アルゴリズム実装（例: `svt1.py`, `noisy_hist1.py`）は `List[Dist]` を引数に取りますが、テストや examples では数値配列を渡したい場面が多いです。`@auto_dist` デコレータを使うと、次の処理を行う `*_dist` ラッパーが自動生成されます。
+#### 2. @auto_dist() デコレータ（algorithms/wrappers.py）
 
-- 数値配列を確定値 `Dist` に変換。
-- エンジンでコンパイルし、解析またはサンプリングを実行。
-- `svt1_dist` などの名前で公開（手動の重複実装は不要）。
+アルゴリズム関数を自動的にコンパイルして、プライバシー損失推定用の関数を提供します。
 
-これにより SVT 系もノイズ機構系も同じ呼び出しフローを共有します。
-
-## リポジトリ構成
-
-- `dpest/core.py`: `Dist` や `Interval`、検証ロジック。
-- `dpest/operations/`: 加算、比較、argmax/max、mux などの演算。
-- `dpest/engine.py`: コンパイル・依存解析・解析/サンプリングモード切り替え。
-- `dpest/analysis/`: 隣接ペア生成、ε 推定ヘルパー。
-- `dpest/algorithms/`: アルゴリズムごとのモジュール（SVT, Noisy Hist, Laplace, RAPPOR 等）。すべて `@auto_dist` を使用。
-- `examples/`: `privacy_loss_single_algorithm.py` などの実行スクリプト。
-- `tests/`: 各演算・アルゴリズムを検証する pytest スイート。
-
-## テストの実行
-
-```bash
-pip install -r requirements.txt
-PYTHONPATH=. pytest
+```python
+@auto_dist()
+def svt1(queries, eps: float, threshold: float, cutoff: int) -> list[Dist]:
+    """SVT1アルゴリズム"""
+    # アルゴリズムの実装
+    ...
 ```
 
-## 実行例
+**機能**:
+1. アルゴリズム関数を実行して出力分布を計算
+2. 依存関係を自動検出（Branch演算など）
+3. 解析モードまたはサンプリングモードを自動選択
+4. `_dist_func`属性として分布計算関数を保存
 
-### 基本的な実行
+#### 3. estimate_algorithm() 関数（analysis/estimation.py）
 
-SVT1 の ε を推定する例:
+隣接データセットのペアに対してプライバシー損失εを推定します。
 
-```bash
-PYTHONPATH=. python examples/privacy_loss_single_algorithm.py SVT1 \
-  --config examples/privacy_loss_single_config.json
+```python
+def estimate_algorithm(
+    name: str,
+    pairs: Sequence[Tuple[np.ndarray, np.ndarray]],
+    *,
+    dist_func: Optional[Callable[..., Sequence[Dist] | Dist]] = None,
+    eps: float = 0.1,
+    n_samples: int = 100_000,
+    extra: Optional[Iterable] = None,
+) -> float | tuple[float, str]:
+    """アルゴリズムのプライバシー損失を推定"""
+    ...
 ```
 
-### ヒストグラム可視化
+**処理フロー**:
+1. 各隣接データセットペアに対して出力分布を計算
+2. プライバシー損失を計算（離散/連続/ジョイント分布に応じて）
+3. 全ペアの最大値を返す
 
-SVT3など混合分布（整数値・浮動小数点値・NaN）を含むアルゴリズムでは、`--visualize-histogram` オプションでビニング戦略と統計を確認できます:
+#### 4. 演算オペレーション（operations/）
 
-```bash
-PYTHONPATH=. python examples/privacy_loss_single_algorithm.py SVT3 \
-  --config examples/privacy_loss_single_config.json \
-  --visualize-histogram
-```
+dpestでは以下の確率分布演算を提供します。詳細は[OPERATIONS.md](OPERATIONS.md)を参照してください。
 
-出力例:
-```
-======================================================================
-Mixed Histogram Binning Visualization
-======================================================================
+##### 基本演算
 
-Total dimensions: 10
-Bins per dimension: [11, 2, 2, 11, 1, 1, 1, 1, 1, 1]
+- **Add**: `Z = X + Y` - 2つの確率変数の和
+- **Affine**: `Z = aX + b` - アフィン変換
+- **Mul**: `Z = X × Y` - 2つの確率変数の積
 
---- Dimension 0 ---
-  Total samples: 200000
-  NaN count: 0
-  Integer values: 0
-  Float values: 200000
-    Range: [2.521, 5.489]
-  Bins allocated: 11  (NaN + 10個の連続ビン)
+##### 順序統計量
 
---- Dimension 1 ---
-  Total samples: 200000
-  NaN count: 0
-  Integer values: 200000
-    Unique integers: [-1000.]
-  Float values: 0
-  Bins allocated: 2  (NaN + 1個の整数ビン)
-...
-```
+- **Max**: `Z = max(X₁, ..., Xₖ)` - 最大値
+- **Min**: `Z = min(X₁, ..., Xₖ)` - 最小値
+- **Argmax**: `Z = argmax(X₁, ..., Xₖ)` - 最大値のインデックス（離散分布）
 
-詳細は `HISTOGRAM_VISUALIZATION.md` を参照してください。
+##### 条件分岐
+
+- **Compare/geq**: `C = 𝟙_{X ≥ Y}` - 比較演算（離散分布を返す）
+- **Branch**: 条件分岐による混合分布
+
+##### その他
+
+- **Vector演算**: ベクトルに対する一括演算（add, argmax等）
+- **PrefixSum**: 累積和演算
+
+#### 5. ノイズ機構（noise.py）
+
+- **Laplace**: ラプラス分布 `f(z) = (1/2b)exp(-|z|/b)`
+- **Exponential**: 指数分布 `f(z) = (1/b)exp(-z/b)` (z ≥ 0)
+
+格子近似を用いて効率的に計算します。
+
+## 設計原則
+
+dpestの設計原則と実装の詳細については、以下のドキュメントを参照してください：
+
+- **実行モードの選択**: [PRIVACY_LOSS_ESTIMATION.md](docs/PRIVACY_LOSS_ESTIMATION.md) - 解析モードとサンプリングモードの違い
+- **精度と性能**: [ACCURACY_AND_PERFORMANCE_ANALYSIS.md](docs/ACCURACY_AND_PERFORMANCE_ANALYSIS.md) - 各モードの精度保証と計算量
+- **演算の詳細**: [OPERATION_DETAILS.md](docs/OPERATION_DETAILS.md) - 各演算の実装アルゴリズム
+- **数学的背景**: [DESIGN.md](docs/DESIGN.md) - 確率分布演算の数学的定義
+
 
 ## ドキュメント
 
-### 入門ガイド
+docs/配下には以下のドキュメントが含まれています：
 
-- **[リポジトリガイド](docs/REPOSITORY_GUIDE.md)**: プロジェクト全体の構成とアーキテクチャの概要
-- **[アルゴリズム実装一覧](docs/ALGORITHMS_REFERENCE.md)**: 実装済みの全18種のアルゴリズム（SVT系、Noisy Max系、RAPPORなど）
-- **[演算リファレンス](docs/OPERATIONS_REFERENCE.md)**: 確率分布演算（Add, Affine, Max, Argmax, Branchなど）の詳細
+### 主要ドキュメント
 
-### 技術仕様
+- **[DESIGN.md](docs/DESIGN.md)**: 各演算の数学的定義と実装方針
+- **[OPERATIONS.md](docs/OPERATIONS.md)**: 演算の一覧と概要
+- **[OPERATION_DETAILS.md](docs/OPERATION_DETAILS.md)**: 演算の詳細な計算方法とアルゴリズム
+- **[ACCURACY_AND_PERFORMANCE_ANALYSIS.md](docs/ACCURACY_AND_PERFORMANCE_ANALYSIS.md)**: 解析手法とサンプリング手法の精度・性能分析
+- **[PRIVACY_LOSS_ESTIMATION.md](docs/PRIVACY_LOSS_ESTIMATION.md)**: プライバシー損失の推定方法の詳細
 
-- **[設計ドキュメント](docs/DESIGN.md)**: 各演算の数学的定義と実装仕様
-- **[演算の詳細](docs/OPERATION.md)**: 演算の内部実装とアルゴリズム
-- **[依存関係解析](docs/DEPENDENCY_ANALYSIS.md)**: 依存関係の検出と処理メカニズム
-- **[依存関係設計](docs/DEPENDENCY_DESIGN.md)**: 依存関係システムの設計思想
+### 計算量解析
 
-### 性能と比較
+- **[ARGMAX_COMPLEXITY.md](docs/ARGMAX_COMPLEXITY.md)**: Argmax演算の計算量詳細解析
 
-- **[計算量解析](docs/COMPLEXITY_ANALYSIS.md)**: 全演算・アルゴリズムの計算量とボトルネック分析
-- **[オペレーション計算量分析](docs/OPERATION_COMPLEXITY_ANALYSIS.md)**: 解析手法の全オペレーション（Add、Argmax、Max等）の詳細な計算量分析
-- **[精度・性能分析](docs/ACCURACY_AND_PERFORMANCE_ANALYSIS.md)**: 解析手法とサンプリング手法の精度・性能の理論的・実測的評価
-- **[解析 vs サンプリング](docs/ANALYTIC_VS_SAMPLING.md)**: 2つのモードの計算量・精度トレードオフと使い分け
-- **[解析モードの優位性](docs/ANALYTIC_MODE_SUPERIORITY.md)**: 実測結果に基づく解析手法の性能分析（100-400倍高速化の理由）
-- **[他手法との比較](docs/COMPARISON_WITH_OTHER_METHODS.md)**: StatDP、DP-Finder、CheckDP、DP-Sniperとの詳細比較
+## よくある質問
 
-### 技術解説
+### Q: どこから始めればいい？
 
-- **[Argmax演算の計算量](docs/ARGMAX_COMPLEXITY.md)**: Argmax演算がO(n²·g²)になる理由と最適化の考察
-- **[グリッド統一問題](docs/GRID_ALIGNMENT.md)**: 異なる入力間での確率分布グリッドの統一方法
-- **[ε=∞の検出](docs/EPSILON_INFINITY_DETECTION.md)**: 排他的ビンによる無限大プライバシー損失の検出方法
-- **[TruncatedGeometric解説](docs/TruncatedGeometric_EXPLANATION.md)**: Truncated Geometric機構の詳細実装
-- **[ReportNoisyMax1解析](docs/REPORT_NOISY_MAX1_ANALYSIS.md)**: ReportNoisyMax1の実行時間と精度の理論的分析
-- **[プライバシー損失レポート](docs/privacy_loss_report.md)**: 各アルゴリズムのε推定結果
-- **[コード概要](docs/code_overview.md)**: コードベースの全体構造
+**A**: まず以下を実行してみてください：
 
-### 推奨読書順序
+```bash
+# 複数アルゴリズムの比較レポートを生成
+python examples/privacy_loss_report.py
 
-**初めての方**:
-1. [リポジトリガイド](docs/REPOSITORY_GUIDE.md) - 全体像の把握
-2. [アルゴリズム実装一覧](docs/ALGORITHMS_REFERENCE.md) - 何ができるかを知る
-3. [解析 vs サンプリング](docs/ANALYTIC_VS_SAMPLING.md) - 使い分けを理解
+# 生成されたレポートを確認
+cat docs/privacy_loss_report.md
+```
 
-**実装者向け**:
-1. [設計ドキュメント](docs/DESIGN.md) - 演算の数学的基礎
-2. [演算リファレンス](docs/OPERATIONS_REFERENCE.md) - 実装パターン
-3. [依存関係解析](docs/DEPENDENCY_ANALYSIS.md) - 複雑なアルゴリズムの扱い
+その後、[PRIVACY_LOSS_ESTIMATION.md](docs/PRIVACY_LOSS_ESTIMATION.md)でdpestの推定手法を理解してください。
 
-**研究者向け**:
-1. [他手法との比較](docs/COMPARISON_WITH_OTHER_METHODS.md) - 学術的位置づけ
-2. [計算量解析](docs/COMPLEXITY_ANALYSIS.md) - 理論的性能評価
-3. [グリッド統一問題](docs/GRID_ALIGNMENT.md) - 技術的課題と解決策
+### Q: 各ドキュメントの役割は？
+
+**A**:
+- **README.md**（このファイル）: リポジトリ全体の構造とクイックスタート
+- **[PRIVACY_LOSS_ESTIMATION.md](docs/PRIVACY_LOSS_ESTIMATION.md)**: プライバシー損失の推定方法（最初に読むべき）
+- **[ACCURACY_AND_PERFORMANCE_ANALYSIS.md](docs/ACCURACY_AND_PERFORMANCE_ANALYSIS.md)**: 精度と性能の詳細分析
+- **[OPERATIONS.md](docs/OPERATIONS.md)**: 演算の一覧と使い方
+- **[OPERATION_DETAILS.md](docs/OPERATION_DETAILS.md)**: 演算の実装詳細
+- **[DESIGN.md](docs/DESIGN.md)**: 数学的定義と設計思想
+- **[ARGMAX_COMPLEXITY.md](docs/ARGMAX_COMPLEXITY.md)**: Argmax演算の計算量解析
+
+### Q: 実装されているアルゴリズムは？
+
+**A**: 以下の18種類：
+- Laplace Mechanism系: LaplaceMechanism, LaplaceParallel
+- Noisy Histogram系: NoisyHist1, NoisyHist2
+- Report Noisy Max系: ReportNoisyMax1-4, NoisyMaxSum
+- RAPPOR系: OneTimeRAPPOR, RAPPOR
+- SVT系: SVT1-6, SVT34Parallel, NumericalSVT
+- その他: PrefixSum, TruncatedGeometric
+
+各アルゴリズムの詳細は`dpest/algorithms/`配下のソースコードを参照してください。
